@@ -1,78 +1,60 @@
-AnsiblePower
+# AnsiblePower
 
-AnsiblePower is a lightweight web interface inspired by Ansible Tower. It allows users to manage Ansible playbooks, view and edit host configurations, and monitor system performance via a modern and intuitive web interface.
-Features
+**AnsiblePower** is a lightweight web interface inspired by Ansible Tower. It allows users to manage Ansible playbooks, view and edit host configurations, and monitor system performance via a modern and intuitive web interface.
 
-    Homepage:
-        Lists available Ansible playbooks.
-        Buttons to:
-            Run: Executes a playbook and shows the output.
-            Show: Displays the content of a playbook.
+## Features
 
-    History:
-        Displays a table of previously run playbooks with timestamps and actions.
+### 1. Homepage
+- Lists available Ansible playbooks
+- Buttons to:
+  - **Run**: Executes a playbook and shows the output
+  - **Show**: Displays the content of a playbook
 
-    Settings:
-        Hosts Management:
-            View and edit /etc/ansible/hosts file.
-            Shows appropriate error messages if the user lacks read/write permissions.
-        Master Node Status:
-            Displays CPU and memory usage.
-        Clear History:
-            Option to delete all playbook execution history.
-        Dark Mode Toggle:
-            Switch between light and dark modes.
+### 2. History
+- Displays a table of previously run playbooks with timestamps and actions
 
-    User-Friendly Interface:
-        Modern design with rounded buttons, smooth animations, and responsive layout.
-        Sidebar with toggle functionality for better navigation.
+### 3. Settings
+#### Hosts Management
+- View and edit `/etc/ansible/hosts` file
+- Displays error messages if the user lacks read/write permissions
 
-Requirements
+#### Master Node Status
+- Displays CPU and memory usage
 
-    Python 3.x
-    Flask (pip install flask)
-    psutil (pip install psutil)
-    Ansible installed and accessible via ansible-playbook.
+#### Clear History
+- Deletes all playbook execution history
 
-Installation
+#### Dark Mode Toggle
+- Switch between light and dark modes
 
-    Clone the repository:
+### 4. User-Friendly Interface
+- Modern design with rounded buttons, smooth animations, and a responsive layout
+- Sidebar with toggle functionality for better navigation
 
-git clone https://github.com/your-repo/ansiblepower.git
-cd ansiblepower
+## Requirements
+- **Python 3.x**
+- **Flask** (`pip install flask`)
+- **psutil** (`pip install psutil`)
+- **Ansible** installed and accessible via `ansible-playbook`
 
-Install dependencies:
+## Installation
 
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/AnsiblePower.git
+cd AnsiblePower
+```
+2. Install dependencies:
+```bash
 pip install flask psutil
-
-Set up directories:
-
-    Ensure your playbooks are in /home/pooyan/ansible/playbooks.
-    Ensure /etc/ansible/hosts exists and has the necessary permissions.
-
-(Optional) Initialize the history file:
-
-    mkdir data
-    echo "[]" > data/history.json
-
-Running the Application
-
-    Start the Flask server:
-
+```
+3. Run the application:
+```bash
 python app.py
+```
+## Contributing :
+I welcome contributors to join and improve this project. If you are passionate about DevOps, Flask, or Ansible, your collaboration would be highly appreciated. Feel free to fork the repository, make changes, and submit a pull request.
 
-Access the app in your browser:
+Contact: I’d love to hear your ideas or suggestions for this project. Let’s collaborate and build something amazing together! You can also reach out to me on GitHub or other platforms.
 
-    http://127.0.0.1:5000
-
-Notes
-
-    If you encounter permission issues with /etc/ansible/hosts, adjust the file permissions:
-
-# Add read permission
-chmod +r /etc/ansible/hosts
-
-# Add write permission
-chmod +w /etc/ansible/hosts
-
-Make sure ansible-playbook is installed and available in your system's PATH.
+If you’d like me to update this further with specific URLs or additional details, let me know!
