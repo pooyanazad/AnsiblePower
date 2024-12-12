@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Settings</h1>
+
+<div class="settings-section">
+    <h2>Hosts</h2>
+    <button id="show-hosts-btn" class="btn">Show Hosts</button>
+    <button id="edit-hosts-btn" class="btn">Edit Hosts</button>
+    <div id="hosts-box" style="display:none;">
+        <textarea id="hosts-content" style="width:100%;height:200px;"></textarea>
+        <button id="save-hosts-btn" class="btn">Save</button>
+    </div>
+    <div id="hosts-error" style="color:red;"></div>
+</div>
+
+<div class="settings-section">
+    <h2>Master Node Status</h2>
+    <button id="status-btn" class="btn">Get Status</button>
+    <div id="status-box" style="display:none;"></div>
+</div>
+
+<div class="settings-section">
+    <h2>History</h2>
+    <button id="clear-history-btn" class="btn">Clear History</button>
+</div>
+
+<div class="settings-section">
+    <h2>Appearance</h2>
+    <button id="toggle-dark-mode" class="btn">{{ "Disable Dark Mode" if dark_mode else "Enable Dark Mode" }}</button>
+</div>
+{% endblock %}

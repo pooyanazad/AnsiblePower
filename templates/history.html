@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>History</h1>
+<table class="history-table">
+    <tr>
+        <th>Time</th>
+        <th>Playbook</th>
+        <th>Action</th>
+    </tr>
+    {% for h in history %}
+    <tr>
+        <td>{{ h.time }}</td>
+        <td>{{ h.playbook }}</td>
+        <td>{{ h.action }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

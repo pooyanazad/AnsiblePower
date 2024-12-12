@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Playbooks</h1>
+<div class="playbook-list">
+    {% for playbook in playbooks %}
+    <div class="playbook-item">
+        <div class="playbook-name">{{ playbook }}</div>
+        <button class="btn run-btn" data-playbook="{{ playbook }}">Run</button>
+        <button class="btn show-btn" data-playbook="{{ playbook }}">Show</button>
+        <pre class="playbook-output" id="output-{{ playbook }}" style="display:none;"></pre>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
