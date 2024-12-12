@@ -5,7 +5,7 @@
 ## Features
 
 ### 1. Homepage
-- Lists available Ansible playbooks
+- Lists available Ansible playbooks on "PLAYBOOKS_DIR" path 
 - Buttons to:
   - **Run**: Executes a playbook and shows the output
   - **Show**: Displays the content of a playbook
