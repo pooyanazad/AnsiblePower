@@ -53,7 +53,7 @@ pip install flask psutil
 ```
 3. Run the application:
 ```bash
-python app.py
+python ansiblePower.py
 ```
 ## Contributing :
 I welcome contributors to join and improve this project. If you are passionate about DevOps, Flask, or Ansible, your collaboration would be highly appreciated. Feel free to fork the repository, make changes, and submit a pull request.
