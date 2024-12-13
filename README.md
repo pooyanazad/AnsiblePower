@@ -55,9 +55,4 @@ pip install flask psutil
 ```bash
 python ansiblePower.py
 ```
-## Contributing :
-I welcome contributors to join and improve this project. If you are passionate about DevOps, Flask, or Ansible, your collaboration would be highly appreciated. Feel free to fork the repository, make changes, and submit a pull request.
 
-Contact: I’d love to hear your ideas or suggestions for this project. Let’s collaborate and build something amazing together! You can also reach out to me on GitHub or other platforms.
-
-If you’d like me to update this further with specific URLs or additional details, let me know!
