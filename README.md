@@ -56,3 +56,5 @@ pip install flask psutil
 python ansiblePower.py
 ```
 
+## Contribution rules:
+https://github.com/pooyanazad/AnsiblePower/blob/main/CONTRIBUTING.md
