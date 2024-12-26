@@ -44,7 +44,7 @@
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/AnsiblePower.git
+git clone https://github.com/pooyanazad/AnsiblePower.git
 cd AnsiblePower
 ```
 2. Install dependencies:
