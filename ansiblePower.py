@@ -1,5 +1,5 @@
 import os
-import json
+import jsonhttps://github.com/pooyanazad/AnsiblePower/blob/main/ansiblePower.py
 import subprocess
 import psutil
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
@@ -7,7 +7,7 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 app = Flask(__name__)
 app.secret_key = "some_random_secret_key" #Replace with your Secret key
 
-PLAYBOOKS_DIR = "/home/pooyan/ansible/playbooks" #Replace with your playbook directory 
+PLAYBOOKS_DIR = "/home" #Replace with your playbook directory 
 HOSTS_FILE = "/etc/ansible/hosts" #Replace with your inventory location
 HISTORY_FILE = "data/history.json"
 
