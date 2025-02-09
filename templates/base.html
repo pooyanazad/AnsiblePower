@@ -1,19 +1,28 @@
 <!DOCTYPE html>
 <html lang="en" class="{{ 'dark' if dark_mode else '' }}">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AnsiblePower</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body>
     {% include 'partials/_header.html' %}
-    <div class="main-container">
-        {% include 'partials/_sidebar.html' %}
-        <div class="content">
-            {% block content %}{% endblock %}
-        </div>
+    <div class="container-fluid">
+      <div class="row">
+          <nav class="col-md-2 d-none d-md-block sidebar">
+              {% include 'partials/_sidebar.html' %}
+          </nav>
+          <main role="main" class="col-md-10 ml-sm-auto px-4">
+              {% block content %}{% endblock %}
+          </main>
+      </div>
     </div>
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

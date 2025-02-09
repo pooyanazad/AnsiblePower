@@ -1,15 +1,26 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h1>Playbooks</h1>
-<div class="playbook-list">
-    {% for playbook in playbooks %}
-    <div class="playbook-item">
-        <div class="playbook-name">{{ playbook }}</div>
-        <button class="btn run-btn" data-playbook="{{ playbook }}">Run</button>
-        <button class="btn show-btn" data-playbook="{{ playbook }}">Show</button>
-        <pre class="playbook-output" id="output-{{ playbook }}" style="display:none;"></pre>
+<div class="mt-4">
+    <h1>Playbooks</h1>
+    {% if error %}
+      <div class="alert alert-danger" role="alert">
+          {{ error }}
+      </div>
+    {% endif %}
+    <div class="list-group">
+        {% for playbook in playbooks %}
+        <div class="list-group-item">
+            <div class="d-flex w-100 justify-content-between">
+                <h5 class="mb-1">{{ playbook }}</h5>
+                <div>
+                    <button class="btn btn-sm btn-success run-btn" data-playbook="{{ playbook }}">Run</button>
+                    <button class="btn btn-sm btn-info show-btn" data-playbook="{{ playbook }}">Show</button>
+                </div>
+            </div>
+            <pre class="playbook-output mt-2" id="output-{{ playbook }}" style="display:none;"></pre>
+        </div>
+        {% endfor %}
     </div>
-    {% endfor %}
 </div>
 {% endblock %}
