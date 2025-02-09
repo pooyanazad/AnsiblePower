@@ -1,169 +1,107 @@
+/* Base styling */
 body {
-    margin:0;
-    padding:0;
+    margin: 0;
+    padding: 0;
     font-family: Arial, sans-serif;
     background: #f5f5f5;
     color: #333;
 }
 
+/* Dark mode */
 .dark body {
     background: #333;
     color: #f5f5f5;
 }
 
-.app-header {
-    background: #007acc;
-    color: #fff;
-    padding: 10px;
-    font-size: 1.5em;
-    display:flex;
-    align-items: center;
-}
-
-.app-title {
-    margin-left: 10px;
-}
-
-.main-container {
-    display:flex;
-    height: calc(100vh - 50px);
-    overflow:hidden;
-}
-
-.sidebar-container {
-    position: relative;
-}
-
-#toggle-sidebar-btn {
-    position: absolute;
-    top:10px;
-    left:10px;
-    background: #007acc;
-    color:white;
-    border:none;
-    cursor:pointer;
-    z-index:10;
-    border-radius:5px;
-    padding:5px 8px;
-    box-shadow:0 2px 5px rgba(0,0,0,0.3);
-}
-
+/* Sidebar styling */
 .sidebar {
-    background:#ddd;
-    width:200px;
-    height:100%;
-    padding-top:50px;
-    transition: transform 0.3s ease;
+    background: #e9ecef; /* Light gray background in light mode */
+    padding: 15px;
+    min-height: 100vh;
 }
 
+/* Dark mode sidebar */
 .dark .sidebar {
-    background:#444;
+    background: #444; /* Dark gray background in dark mode */
 }
 
-.sidebar ul {
-    list-style:none;
-    padding:0;
-    margin:0;
-}
-
-.sidebar li {
-    margin:10px 0;
-    text-align:center;
-}
-
+/* Sidebar links */
 .sidebar a {
-    color:#333;
-    text-decoration:none;
-    display:block;
-    padding:10px;
-    transition: background 0.3s;
-    border-radius:5px;
-}
-
-.dark .sidebar a {
-    color:#fff;
+    color: #333;
+    text-decoration: none;
+    padding: 8px 12px;
+    display: block;
+    border-radius: 4px;
 }
 
 .sidebar a:hover {
-    background:#bbb;
+    background: #ddd;
 }
+
+.dark .sidebar a {
+    color: #f5f5f5;
+}
+
 .dark .sidebar a:hover {
-    background:#555;
+    background: #555;
 }
 
-.content {
-    flex:1;
-    padding:20px;
-    overflow:auto;
+/* Content styling */
+.main {
+    padding: 20px;
 }
 
-.btn {
-    background:#007acc;
-    color:white;
-    border:none;
-    padding:5px 10px;
-    cursor:pointer;
-    margin:5px;
-    box-shadow:0 2px 5px rgba(0,0,0,0.3);
-    transition: background 0.3s;
-    border-radius:5px;
-}
-
-.btn:hover {
-    background:#005f99;
-}
-
-.playbook-list {
-    display:flex;
-    flex-direction:column;
-}
-
-.playbook-item {
-    background:#eee;
-    padding:10px;
-    margin-bottom:10px;
-    box-shadow:0 2px 5px rgba(0,0,0,0.1);
-    border-radius:5px;
-}
-.dark .playbook-item {
-    background:#555;
-}
-
-.playbook-name {
-    font-weight:bold;
-    margin-bottom:10px;
-}
-
+/* Playbook output styling */
 .playbook-output {
-    background:#fff;
-    color:#000;
-    padding:10px;
-    margin-top:10px;
-    white-space:pre-wrap;
-    border:1px solid #ccc;
-    border-radius:5px;
+    background: #fff;
+    color: #000;
+    padding: 10px;
+    margin-top: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
 }
 
 .dark .playbook-output {
-    background:#333;
-    color:#fff;
-    border:1px solid #555;
+    background: #333;
+    color: #fff;
+    border: 1px solid #555;
 }
 
-.history-table {
-    width:100%;
-    border-collapse: collapse;
+/* List-group items (for playbooks) */
+.list-group-item {
+    background-color: #fff;
+    color: #333;
 }
 
-.history-table th, .history-table td {
-    border:1px solid #ccc;
-    padding:5px;
-    text-align:left;
-}
-.dark .history-table th, .dark .history-table td {
-    border:1px solid #555;
+.dark .list-group-item {
+    background-color: #2c2f33;  /* Dark background for items in dark mode */
+    color: #ffffff;
+    border-color: #23272a;
 }
 
-.settings-section {
-    margin-bottom:20px;
+/* Table adjustments in dark mode */
+.dark table {
+    color: #f5f5f5;
+    background-color: #444;
+}
+
+.dark table th,
+.dark table td {
+    border: 1px solid #555;
+}
+
+/* Alert margin */
+.alert {
+    margin-top: 20px;
+}
+
+/* Sidebar toggle button (if used) */
+#toggle-sidebar-btn {
+    background: #007acc;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 5px 10px;
+    margin-bottom: 10px;
+    cursor: pointer;
 }
