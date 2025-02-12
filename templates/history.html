@@ -1,19 +1,46 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h1>History</h1>
-<table class="history-table">
-    <tr>
-        <th>Time</th>
-        <th>Playbook</th>
-        <th>Action</th>
-    </tr>
-    {% for h in history %}
-    <tr>
-        <td>{{ h.time }}</td>
-        <td>{{ h.playbook }}</td>
-        <td>{{ h.action }}</td>
-    </tr>
-    {% endfor %}
-</table>
+<div class="mt-4">
+    <h1>Execution History</h1>
+    {% if history|length == 0 %}
+        <p>No history available.</p>
+    {% else %}
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Playbook</th>
+                <th>Action</th>
+                <th>Output</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for record in history|reverse %}
+            <tr>
+                <td>{{ record.time }}</td>
+                <td>{{ record.playbook }}</td>
+                <td>{{ record.action }}</td>
+                <td><pre style="white-space: pre-wrap;">{{ record.output }}</pre></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <div class="mt-4">
+        <h3>Export/Import History</h3>
+        <div class="mb-2">
+            <a class="btn btn-outline-primary" href="{{ url_for('export_history', format='json') }}">Export as JSON</a>
+            <a class="btn btn-outline-secondary" href="{{ url_for('export_history', format='csv') }}">Export as CSV</a>
+        </div>
+        <form id="import-history-form" action="{{ url_for('import_history') }}" method="POST" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="import-file">Import History File (.json or .csv)</label>
+                <input type="file" name="file" id="import-file" class="form-control-file" accept=".json,.csv" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Import History</button>
+        </form>
+    </div>
+</div>
 {% endblock %}
