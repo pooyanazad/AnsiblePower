@@ -290,7 +290,7 @@ if __name__ == "__main__":
             os.makedirs("data")
         if not os.path.exists(HISTORY_FILE):
             save_history([])
-        app.run(debug=True, host="0.0.0.0", port=5000)
+        app.run(host="0.0.0.0", port=5000)
     except Exception as e:
         logger.exception("Error starting application")
         raise
