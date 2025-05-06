@@ -36,7 +36,7 @@
 - **Flask** (`pip install flask`)
 - **psutil** (`pip install psutil`)
 - **Ansible** installed and accessible via `ansible-playbook`
-- **Replace below variables with yours in AnsiblePower.py**
+- **Replace below variables with yours in ansiblePower.py**
   
 ![image](https://github.com/user-attachments/assets/fb1eb86c-8a41-486b-9e70-2c421b25ca17)
 
