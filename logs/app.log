@@ -1,0 +1,39 @@
+2025-05-18 12:55:44,559 INFO: Recorded playbook run: ping.yaml
+2025-05-18 12:55:44,467 ERROR: Unexpected error running playbook ping.yaml
+Traceback (most recent call last):
+  File "\\wsl.localhost\Ubuntu-24.04\home\pooyan\projects\AnsiblePower\ansiblePower.py", line 142, in run_playbook
+    output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\subprocess.py", line 466, in check_output
+    return run(*popenargs, stdout=PIPE, timeout=timeout, check=True,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\subprocess.py", line 548, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\subprocess.py", line 1026, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\subprocess.py", line 1538, in _execute_child
+    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [WinError 2] The system cannot find the file specified
+2025-05-18 12:55:38,716 INFO: Dark mode toggled to True
+2025-05-18 12:55:38,213 INFO: Dark mode toggled to False
+2025-05-18 12:55:37,150 INFO: Dark mode toggled to True
+2025-05-18 12:54:49,142 INFO: Dark mode toggled to False
+2025-05-18 12:54:48,018 INFO: Dark mode toggled to True
+2025-05-18 12:54:47,608 INFO: Dark mode toggled to False
+2025-05-18 12:54:46,913 INFO: Dark mode toggled to True
+2025-05-18 12:54:44,744 INFO: Dark mode toggled to False
+2025-05-18 12:54:44,270 INFO: Dark mode toggled to True
+2025-05-18 12:54:43,523 INFO: Dark mode toggled to False
+2025-05-18 12:54:36,653 INFO: Dark mode toggled to True
+2025-05-18 12:54:35,829 INFO: Dark mode toggled to False
+2025-05-18 12:53:17,061 INFO: Dark mode toggled to True
+2025-05-18 12:53:12,666 INFO: Dark mode toggled to False
+2025-05-18 12:53:12,058 INFO: Dark mode toggled to True
+2025-05-18 12:53:10,182 INFO: Dark mode toggled to False
+2025-05-18 12:53:03,769 INFO: Displayed playbook: ping.yaml
+2025-05-18 12:53:01,313 INFO: Updated playbooks directory to: /home/pooyan
+2025-05-18 12:52:44,150 INFO: Updated playbooks directory to: /home/pooyan/ansible/playbooks
+2025-05-18 12:52:36,383 INFO: History cleared
+2025-05-18 12:52:30,683 INFO: Dark mode toggled to True

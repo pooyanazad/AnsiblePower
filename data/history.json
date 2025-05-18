@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "action": "run",
+    "playbook": "ping.yaml",
+    "output": "Unexpected error occurred: [WinError 2] The system cannot find the file specified",
+    "time": "Sun, May 18, 2025 12:55:44 PM"
+  }
+]

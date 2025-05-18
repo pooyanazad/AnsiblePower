@@ -52,9 +52,31 @@ app = Flask(__name__)
 app.secret_key = "some_random_secret_key"  # Replace with your secret key
 
 # Configuration variables
-PLAYBOOKS_DIR = "/home/pooyan/ansible/playbooks"  # Adjust as needed.
+CONFIG_FILE = "data/config.json"
+DEFAULT_PLAYBOOKS_DIR = "/home/pooyan/ansible/playbooks"  # Default path
 HOSTS_FILE = "/etc/ansible/hosts"                  # Adjust as needed.
 HISTORY_FILE = "data/history.json"
+
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "r") as f:
+            try:
+                return json.load(f)
+            except Exception as e:
+                logger.error("Error loading config: %s", e)
+                return {"playbooks_dir": DEFAULT_PLAYBOOKS_DIR}
+    return {"playbooks_dir": DEFAULT_PLAYBOOKS_DIR}
+
+def save_config(config):
+    try:
+        with open(CONFIG_FILE, "w") as f:
+            json.dump(config, f, indent=2)
+    except Exception as e:
+        logger.error("Error saving config: %s", e)
+
+def get_playbooks_dir():
+    config = load_config()
+    return config.get("playbooks_dir", DEFAULT_PLAYBOOKS_DIR)
 
 def load_history():
     if os.path.exists(HISTORY_FILE):
@@ -79,23 +101,28 @@ def save_history(history):
 @app.route("/")
 def homepage():
     dark_mode = session.get("dark_mode", False)
+    playbooks_dir = get_playbooks_dir()
     error = None
-    if not os.path.exists(PLAYBOOKS_DIR):
-        error = f"Playbooks directory '{PLAYBOOKS_DIR}' does not exist. Please create it and add your playbook files."
+    prompt_for_dir = False
+    
+    if not os.path.exists(playbooks_dir):
+        prompt_for_dir = True
         playbooks = []
-    elif not (os.access(PLAYBOOKS_DIR, os.R_OK) and os.access(PLAYBOOKS_DIR, os.W_OK)):
-        error = (f"Insufficient permissions for the playbooks directory '{PLAYBOOKS_DIR}'. "
+    elif not (os.access(playbooks_dir, os.R_OK) and os.access(playbooks_dir, os.W_OK)):
+        error = (f"Insufficient permissions for the playbooks directory '{playbooks_dir}'. "
                  "Ensure the directory is readable and writable by the current user.")
         playbooks = []
     else:
         try:
-            playbooks = [f for f in os.listdir(PLAYBOOKS_DIR)
+            playbooks = [f for f in os.listdir(playbooks_dir)
                          if f.endswith('.yml') or f.endswith('.yaml')]
         except Exception as e:
             logger.exception("Error listing playbooks: %s", e)
             playbooks = []
             error = "An error occurred while accessing the playbooks directory."
-    return render_template("index.html", playbooks=playbooks, dark_mode=dark_mode, error=error)
+    
+    return render_template("index.html", playbooks=playbooks, dark_mode=dark_mode, 
+                          error=error, prompt_for_dir=prompt_for_dir, playbooks_dir=playbooks_dir)
 
 @app.route("/run_playbook", methods=["POST"])
 def run_playbook():
@@ -104,7 +131,8 @@ def run_playbook():
         logger.error("No playbook specified in run_playbook")
         return jsonify({"error": "No playbook specified"}), 400
 
-    playbook_path = os.path.join(PLAYBOOKS_DIR, playbook_name)
+    playbooks_dir = get_playbooks_dir()
+    playbook_path = os.path.join(playbooks_dir, playbook_name)
     if not os.path.exists(playbook_path):
         logger.error("Playbook does not exist: %s", playbook_path)
         return jsonify({"error": "Playbook does not exist"}), 404
@@ -140,7 +168,8 @@ def show_playbook():
         logger.error("No playbook specified in show_playbook")
         return jsonify({"error": "No playbook specified"}), 400
 
-    playbook_path = os.path.join(PLAYBOOKS_DIR, playbook_name)
+    playbooks_dir = get_playbooks_dir()
+    playbook_path = os.path.join(playbooks_dir, playbook_name)
     if not os.path.exists(playbook_path):
         logger.error("Playbook does not exist: %s", playbook_path)
         return jsonify({"error": "Playbook does not exist"}), 404
@@ -163,7 +192,21 @@ def history():
 @app.route("/settings")
 def settings():
     dark_mode = session.get("dark_mode", False)
-    return render_template("settings.html", dark_mode=dark_mode)
+    config = load_config()
+    playbooks_dir = config.get("playbooks_dir", DEFAULT_PLAYBOOKS_DIR)
+    return render_template("settings.html", dark_mode=dark_mode, playbooks_dir=playbooks_dir)
+
+@app.route("/update_playbooks_dir", methods=["POST"])
+def update_playbooks_dir():
+    new_dir = request.form.get("playbooks_dir", "").strip()
+    if not new_dir:
+        return jsonify({"error": "Directory path cannot be empty"}), 400
+    
+    config = load_config()
+    config["playbooks_dir"] = new_dir
+    save_config(config)
+    logger.info("Updated playbooks directory to: %s", new_dir)
+    return jsonify({"status": "ok", "message": "Playbooks directory updated successfully"})
 
 @app.route("/get_hosts", methods=["GET"])
 def get_hosts():
@@ -290,6 +333,8 @@ if __name__ == "__main__":
             os.makedirs("data")
         if not os.path.exists(HISTORY_FILE):
             save_history([])
+        if not os.path.exists(CONFIG_FILE):
+            save_config({"playbooks_dir": DEFAULT_PLAYBOOKS_DIR})
         app.run(host="0.0.0.0", port=5000)
     except Exception as e:
         logger.exception("Error starting application")

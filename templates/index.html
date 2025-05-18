@@ -8,6 +8,47 @@
           {{ error }}
       </div>
     {% endif %}
+    
+    {% if prompt_for_dir %}
+    <div class="alert alert-warning">
+        <p>Playbooks directory '{{ playbooks_dir }}' does not exist.</p>
+        <form id="playbooks-dir-form" class="mt-3">
+            <div class="form-group">
+                <label for="playbooks_dir">Please specify the path to your playbooks directory:</label>
+                <input type="text" class="form-control" id="playbooks_dir" name="playbooks_dir" 
+                       value="{{ playbooks_dir }}" required>
+            </div>
+            <button type="submit" class="btn btn-primary mt-2">Save Directory</button>
+        </form>
+    </div>
+    
+    <script>
+        document.getElementById('playbooks-dir-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const playbooksDir = document.getElementById('playbooks_dir').value;
+            
+            fetch('/update_playbooks_dir', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'playbooks_dir=' + encodeURIComponent(playbooksDir)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while updating the playbooks directory.');
+            });
+        });
+    </script>
+    {% else %}
     <div class="list-group">
         {% for playbook in playbooks %}
         <div class="list-group-item">
@@ -22,5 +63,6 @@
         </div>
         {% endfor %}
     </div>
+    {% endif %}
 </div>
 {% endblock %}
