@@ -1,0 +1,30 @@
+# Ignore database and user data files
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.bak
+*.tmp
+*.swp
+*.swo
+*.pid
+*.lock
+
+# Ignore user data and history
+/data/*.json
+!data/config.json
+
+# Ignore logs
+/logs/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# VS Code settings
+.vscode/
+
+# OS generated files
+.DS_Store
+Thumbs.db
