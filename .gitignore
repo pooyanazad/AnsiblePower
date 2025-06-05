@@ -25,6 +25,9 @@ __pycache__/
 # VS Code settings
 .vscode/
 
+# IDX settings
+.idx/
+
 # OS generated files
 .DS_Store
 Thumbs.db
