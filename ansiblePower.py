@@ -46,8 +46,12 @@ log_handler.setFormatter(formatter)
 logger.addHandler(log_handler)
 
 # =============================================================================
-# Flask App Setup
+# Configuration Variables and Helper Functions
 # =============================================================================
+CONFIG_FILE = "data/config.json"
+DEFAULT_PLAYBOOKS_DIR = "/home/pooyan/ansible/playbooks"  # Default path
+HOSTS_FILE = "/etc/ansible/hosts"                  # Adjust as needed.
+HISTORY_FILE = "data/history.json"
 app = Flask(__name__)
 app.secret_key = "some_random_secret_key"  # Replace with your secret key
 
@@ -96,19 +100,30 @@ def save_history(history):
         logger.error("Error saving history: %s", e)
 
 # =============================================================================
-# Routes
+# Flask App Setup
 # =============================================================================
-@app.route("/")
+
+
+# =============================================================================
+# Blueprints
+# =============================================================================
+from flask import Blueprint
+
+main_bp = Blueprint('main', __name__)
+history_bp = Blueprint('history', __name__, url_prefix='/history')
+settings_bp = Blueprint('settings', __name__, url_prefix='/settings')
+
+@main_bp.route("/")
 def homepage():
     dark_mode = session.get("dark_mode", False)
     playbooks_dir = get_playbooks_dir()
     error = None
     prompt_for_dir = False
-    
-    if not os.path.exists(playbooks_dir):
-        prompt_for_dir = True
-        playbooks = []
-    elif not (os.access(playbooks_dir, os.R_OK) and os.access(playbooks_dir, os.W_OK)):
+
+ if not os.path.exists(playbooks_dir):
+ prompt_for_dir = True
+ playbooks = []
+ elif not (os.access(playbooks_dir, os.R_OK) and os.access(playbooks_dir, os.W_OK)):
         error = (f"Insufficient permissions for the playbooks directory '{playbooks_dir}'. "
                  "Ensure the directory is readable and writable by the current user.")
         playbooks = []
@@ -124,7 +139,7 @@ def homepage():
     return render_template("index.html", playbooks=playbooks, dark_mode=dark_mode, 
                           error=error, prompt_for_dir=prompt_for_dir, playbooks_dir=playbooks_dir)
 
-@app.route("/run_playbook", methods=["POST"])
+@main_bp.route("/run_playbook", methods=["POST"])
 def run_playbook():
     playbook_name = request.form.get("playbook")
     if not playbook_name:
@@ -161,7 +176,7 @@ def run_playbook():
     logger.info("Recorded playbook run: %s", playbook_name)
     return jsonify({"output": output})
 
-@app.route("/show_playbook", methods=["POST"])
+@main_bp.route("/show_playbook", methods=["POST"])
 def show_playbook():
     playbook_name = request.form.get("playbook")
     if not playbook_name:
@@ -183,12 +198,12 @@ def show_playbook():
         logger.exception("Error reading playbook %s", playbook_name)
         return jsonify({"error": "Error reading playbook"}), 500
 
-@app.route("/history")
+@history_bp.route("/")
 def history():
     dark_mode = session.get("dark_mode", False)
     history_data = load_history()
     return render_template("history.html", history=history_data, dark_mode=dark_mode)
-
+    
 @app.route("/settings")
 def settings():
     dark_mode = session.get("dark_mode", False)
@@ -196,7 +211,7 @@ def settings():
     playbooks_dir = config.get("playbooks_dir", DEFAULT_PLAYBOOKS_DIR)
     return render_template("settings.html", dark_mode=dark_mode, playbooks_dir=playbooks_dir)
 
-@app.route("/update_playbooks_dir", methods=["POST"])
+@settings_bp.route("/update_playbooks_dir", methods=["POST"])
 def update_playbooks_dir():
     new_dir = request.form.get("playbooks_dir", "").strip()
     if not new_dir:
@@ -208,7 +223,7 @@ def update_playbooks_dir():
     logger.info("Updated playbooks directory to: %s", new_dir)
     return jsonify({"status": "ok", "message": "Playbooks directory updated successfully"})
 
-@app.route("/get_hosts", methods=["GET"])
+@settings_bp.route("/get_hosts", methods=["GET"])
 def get_hosts():
     try:
         if not os.access(HOSTS_FILE, os.R_OK):
@@ -226,7 +241,7 @@ def get_hosts():
         logger.exception("Error getting hosts file")
         return jsonify({"error": "Unexpected error occurred"}), 500
 
-@app.route("/save_hosts", methods=["POST"])
+@settings_bp.route("/save_hosts", methods=["POST"])
 def save_hosts():
     new_content = request.form.get("content", "")
     try:
@@ -241,7 +256,7 @@ def save_hosts():
         logger.exception("Error saving hosts file")
         return jsonify({"error": "Error saving hosts file"}), 500
 
-@app.route("/system_status", methods=["GET"])
+@settings_bp.route("/system_status", methods=["GET"])
 def system_status():
     try:
         cpu_percent = psutil.cpu_percent(interval=1)
@@ -253,7 +268,7 @@ def system_status():
         logger.exception("Error fetching system status")
         return jsonify({"error": "Error fetching system status"}), 500
 
-@app.route("/clear_history", methods=["POST"])
+@settings_bp.route("/clear_history", methods=["POST"])
 def clear_history():
     try:
         save_history([])
@@ -263,7 +278,7 @@ def clear_history():
         logger.exception("Error clearing history")
         return jsonify({"error": "Error clearing history"}), 500
 
-@app.route("/toggle_dark_mode", methods=["POST"])
+@settings_bp.route("/toggle_dark_mode", methods=["POST"])
 def toggle_dark_mode():
     try:
         current = session.get("dark_mode", False)
@@ -277,7 +292,7 @@ def toggle_dark_mode():
 # ---------------------------------------------------------------------------
 # History Export and Import Endpoints (accessed from the History page)
 # ---------------------------------------------------------------------------
-@app.route("/export_history")
+@history_bp.route("/export_history")
 def export_history():
     export_format = request.args.get("format", "json")
     history_data = load_history()
@@ -299,7 +314,7 @@ def export_history():
         return Response(json.dumps(history_data, indent=2), mimetype="application/json",
                         headers={"Content-Disposition": "attachment;filename=history.json"})
 
-@app.route("/import_history", methods=["POST"])
+@history_bp.route("/import_history", methods=["POST"])
 def import_history():
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), 400
@@ -336,6 +351,9 @@ if __name__ == "__main__":
         if not os.path.exists(CONFIG_FILE):
             save_config({"playbooks_dir": DEFAULT_PLAYBOOKS_DIR})
         app.run(host="0.0.0.0", port=5000)
+ app.register_blueprint(main_bp)
+ app.register_blueprint(history_bp)
+ app.register_blueprint(settings_bp)
     except Exception as e:
         logger.exception("Error starting application")
         raise
