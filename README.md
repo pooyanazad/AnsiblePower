@@ -27,6 +27,11 @@
 #### Dark Mode Toggle
 - Switch between light and dark modes
 
+### 5. Flask Blueprint
+- The application is structured using a Flask Blueprint for better organization and modularity.
+- This allows for easier scaling and separation of concerns within the application.
+- The Blueprint is defined in `ansiblePower.py`.
+
 ### 4. User-Friendly Interface
 - Modern design with rounded buttons, smooth animations, and a responsive layout
 - Sidebar with toggle functionality for better navigation

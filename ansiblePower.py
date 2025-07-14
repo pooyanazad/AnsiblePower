@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Blueprint for the Flask application
+# This file contains the Flask application blueprint.
 import os
 import json
 import subprocess
@@ -351,6 +353,9 @@ if __name__ == "__main__":
         if not os.path.exists(CONFIG_FILE):
             save_config({"playbooks_dir": DEFAULT_PLAYBOOKS_DIR})
         app.run(host="0.0.0.0", port=5000)
+ app.register_blueprint(main_bp)
+ app.register_blueprint(history_bp)
+ # Register blueprints
  app.register_blueprint(main_bp)
  app.register_blueprint(history_bp)
  app.register_blueprint(settings_bp)
