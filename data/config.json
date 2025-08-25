@@ -1,3 +1,4 @@
 {
-  "playbooks_dir": "/home/pooyan"
+  "playbooks_dir": "C:/Users/pooya/OneDrive/Desktop/Codes/AnsiblePower/playbooks",
+  "hosts_file": "data/hosts"
 }

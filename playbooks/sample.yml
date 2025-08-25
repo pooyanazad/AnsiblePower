@@ -1,0 +1,8 @@
+---
+# Sample Ansible Playbook
+- name: Sample playbook
+  hosts: all
+  tasks:
+    - name: Print hello message
+      debug:
+        msg: "Hello from AnsiblePower!"
