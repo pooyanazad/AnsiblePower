@@ -31,3 +31,29 @@ __pycache__/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Test coverage and reports
+.coverage
+.pytest_cache/
+htmlcov/
+*.cover
+*.py,cover
+.hypothesis/
+.tox/
+coverage.xml
+*.coveragerc
+nosetests.xml
+testresults.xml
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.env/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/

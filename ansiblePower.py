@@ -360,6 +360,11 @@ def import_history():
         logger.exception("Error importing history")
         return jsonify({"error": "Error processing file: " + str(e)}), 500
 
+# Register blueprints (moved outside of main block for testing)
+app.register_blueprint(main_bp)
+app.register_blueprint(history_bp)
+app.register_blueprint(settings_bp)
+
 # =============================================================================
 # Main
 # =============================================================================
@@ -387,11 +392,6 @@ if __name__ == "__main__":
                 os.makedirs(hosts_dir)
             with open(hosts_file_path, "w") as f:
                 f.write("# Ansible hosts file\n# Add your hosts here\n[webservers]\n# web1.example.com\n# web2.example.com\n\n[databases]\n# db1.example.com\n")
-        
-        # Register blueprints
-        app.register_blueprint(main_bp)
-        app.register_blueprint(history_bp)
-        app.register_blueprint(settings_bp)
         
         app.run(host="0.0.0.0", port=5000, debug=True)
     except Exception as e:

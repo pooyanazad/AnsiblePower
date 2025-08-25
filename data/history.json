@@ -4,5 +4,11 @@
     "playbook": "sample.yml",
     "output": "Unexpected error occurred: [WinError 2] The system cannot find the file specified",
     "time": "Mon, Aug 25, 2025  6:40:12 PM"
+  },
+  {
+    "action": "run",
+    "playbook": "sample.yml",
+    "output": "Unexpected error occurred: [WinError 2] The system cannot find the file specified",
+    "time": "Mon, Aug 25, 2025  7:08:11 PM"
   }
 ]

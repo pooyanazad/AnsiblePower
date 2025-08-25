@@ -1,2 +1,5 @@
 Flask==2.3.3
 psutil==5.9.6
+pytest==7.4.3
+pytest-cov==4.1.0
+unittest-xml-reporting==3.2.0
