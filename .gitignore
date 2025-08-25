@@ -14,8 +14,11 @@
 /data/*.json
 !data/config.json
 
-# Ignore logs
-/logs/
+# Track empty log files but ignore their content
+# Allow logs directory and .log files to be tracked
+!/logs/
+!/logs/*.log
+# But ignore any content in log files (this is handled by the *.log rule above)
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
