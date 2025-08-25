@@ -1,7 +1,21 @@
-2025-05-18 12:55:44,559 INFO: Recorded playbook run: ping.yaml
-2025-05-18 12:55:44,467 ERROR: Unexpected error running playbook ping.yaml
+2025-08-25 18:45:05,468 INFO: Hosts file read successfully
+2025-08-25 18:45:04,497 INFO: Hosts file read successfully
+2025-08-25 18:44:59,703 INFO: Hosts file read successfully
+2025-08-25 18:44:26,905 INFO: Hosts file saved successfully
+2025-08-25 18:44:26,010 INFO: Hosts file read successfully
+2025-08-25 18:44:24,724 INFO: Hosts file read successfully
+2025-08-25 18:44:21,956 INFO: Hosts file read successfully
+2025-08-25 18:44:07,412 INFO: Hosts file read successfully
+2025-08-25 18:44:05,296 INFO: System status: CPU 11.7%, Memory 36.1%
+2025-08-25 18:44:02,607 INFO: Dark mode toggled to False
+2025-08-25 18:43:54,181 INFO: Dark mode toggled to True
+2025-08-25 18:43:51,704 INFO: Dark mode toggled to False
+2025-08-25 18:43:49,699 INFO: Dark mode toggled to True
+2025-08-25 18:40:16,417 INFO: Displayed playbook: sample.yml
+2025-08-25 18:40:12,618 INFO: Recorded playbook run: sample.yml
+2025-08-25 18:40:12,564 ERROR: Unexpected error running playbook sample.yml
 Traceback (most recent call last):
-  File "\\wsl.localhost\Ubuntu-24.04\home\pooyan\projects\AnsiblePower\ansiblePower.py", line 142, in run_playbook
+  File "C:\Users\pooya\OneDrive\Desktop\Codes\AnsiblePower\ansiblePower.py", line 159, in run_playbook
     output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\subprocess.py", line 466, in check_output
@@ -16,24 +30,171 @@ Traceback (most recent call last):
     hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 FileNotFoundError: [WinError 2] The system cannot find the file specified
-2025-05-18 12:55:38,716 INFO: Dark mode toggled to True
-2025-05-18 12:55:38,213 INFO: Dark mode toggled to False
-2025-05-18 12:55:37,150 INFO: Dark mode toggled to True
-2025-05-18 12:54:49,142 INFO: Dark mode toggled to False
-2025-05-18 12:54:48,018 INFO: Dark mode toggled to True
-2025-05-18 12:54:47,608 INFO: Dark mode toggled to False
-2025-05-18 12:54:46,913 INFO: Dark mode toggled to True
-2025-05-18 12:54:44,744 INFO: Dark mode toggled to False
-2025-05-18 12:54:44,270 INFO: Dark mode toggled to True
-2025-05-18 12:54:43,523 INFO: Dark mode toggled to False
-2025-05-18 12:54:36,653 INFO: Dark mode toggled to True
-2025-05-18 12:54:35,829 INFO: Dark mode toggled to False
-2025-05-18 12:53:17,061 INFO: Dark mode toggled to True
-2025-05-18 12:53:12,666 INFO: Dark mode toggled to False
-2025-05-18 12:53:12,058 INFO: Dark mode toggled to True
-2025-05-18 12:53:10,182 INFO: Dark mode toggled to False
-2025-05-18 12:53:03,769 INFO: Displayed playbook: ping.yaml
-2025-05-18 12:53:01,313 INFO: Updated playbooks directory to: /home/pooyan
-2025-05-18 12:52:44,150 INFO: Updated playbooks directory to: /home/pooyan/ansible/playbooks
-2025-05-18 12:52:36,383 INFO: History cleared
-2025-05-18 12:52:30,683 INFO: Dark mode toggled to True
+2025-08-25 18:39:31,490 ERROR: Error loading history: Expecting value: line 1 column 1 (char 0)
+2025-08-25 18:39:31,447 ERROR: Error loading config: Expecting value: line 1 column 1 (char 0)
+2025-08-25 18:39:27,458 ERROR: Error loading history: Expecting value: line 1 column 1 (char 0)
+2025-08-25 18:39:27,437 ERROR: Error loading config: Expecting value: line 1 column 1 (char 0)
+2025-08-25 18:35:29,792 INFO: System status: CPU 19.7%, Memory 36.3%
+2025-08-25 18:34:05,932 ERROR: Error loading history: Expecting value: line 1 column 1 (char 0)
+2025-08-25 18:34:05,910 ERROR: Error loading config: Expecting value: line 1 column 1 (char 0)
+2025-08-25 18:33:40,400 ERROR: Error loading history: Expecting value: line 1 column 1 (char 0)
+2025-08-25 18:33:40,365 ERROR: Error loading config: Expecting value: line 1 column 1 (char 0)
+2025-08-25 18:28:21,395 INFO: Updated playbooks directory to: /home/pooyan
+2025-08-25 18:28:18,887 INFO: System status: CPU 15.5%, Memory 35.8%
+2025-08-25 18:28:13,453 INFO: History imported from history.csv
+2025-08-25 18:27:28,886 INFO: Updated playbooks directory to: /home/pooyan
+2025-08-25 18:27:19,766 INFO: System status: CPU 33.0%, Memory 35.9%
+2025-08-25 18:27:19,590 INFO: System status: CPU 30.0%, Memory 35.9%
+2025-08-25 18:27:19,390 INFO: System status: CPU 24.7%, Memory 35.9%
+2025-08-25 18:27:19,106 INFO: System status: CPU 23.7%, Memory 35.9%
+2025-08-25 18:27:18,516 INFO: System status: CPU 18.0%, Memory 35.9%
+2025-08-25 18:27:17,424 INFO: System status: CPU 15.9%, Memory 35.9%
+2025-08-25 18:27:17,243 INFO: System status: CPU 16.0%, Memory 35.9%
+2025-08-25 18:27:17,046 INFO: System status: CPU 18.1%, Memory 35.9%
+2025-08-25 18:27:16,240 INFO: System status: CPU 19.4%, Memory 35.9%
+2025-08-25 18:27:13,058 INFO: Dark mode toggled to False
+2025-08-25 18:27:12,208 INFO: Dark mode toggled to True
+2025-08-25 18:27:09,586 INFO: System status: CPU 10.8%, Memory 35.9%
+2025-08-25 18:27:09,444 INFO: History cleared
+2025-08-25 18:27:07,968 ERROR: Read permission denied for hosts file: /etc/ansible/hosts
+2025-08-25 18:27:07,582 ERROR: Read permission denied for hosts file: /etc/ansible/hosts
+2025-08-25 18:27:06,951 ERROR: Read permission denied for hosts file: /etc/ansible/hosts
+2025-08-25 18:27:06,323 ERROR: Read permission denied for hosts file: /etc/ansible/hosts
+2025-08-25 18:27:05,000 ERROR: Read permission denied for hosts file: /etc/ansible/hosts
+2025-08-25 18:27:04,292 ERROR: Read permission denied for hosts file: /etc/ansible/hosts
+2025-08-25 18:23:55,237 ERROR: Exception on / [GET]
+Traceback (most recent call last):
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\app.py", line 2190, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\app.py", line 1486, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\app.py", line 1484, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\app.py", line 1469, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\OneDrive\Desktop\Codes\AnsiblePower\ansiblePower.py", line 141, in homepage
+    return render_template("index.html", playbooks=playbooks, dark_mode=dark_mode,
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\templating.py", line 151, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\templating.py", line 132, in _render
+    rv = template.render(context)
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\jinja2\environment.py", line 1301, in render
+    self.environment.handle_exception()
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\jinja2\environment.py", line 936, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\pooya\OneDrive\Desktop\Codes\AnsiblePower\templates\index.html", line 1, in top-level template code
+    {% extends 'base.html' %}
+  File "C:\Users\pooya\OneDrive\Desktop\Codes\AnsiblePower\templates\base.html", line 12, in top-level template code
+    {% include 'partials/_header.html' %}
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\OneDrive\Desktop\Codes\AnsiblePower\templates\partials\_header.html", line 2, in top-level template code
+    <a class="navbar-brand" href="{{ url_for('homepage') }}">ansiblePower</a>
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\app.py", line 1697, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\app.py", line 1686, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\werkzeug\routing\map.py", line 950, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'homepage'. Did you mean 'main.homepage' instead?
+2025-08-25 18:23:55,072 ERROR: Exception on / [GET]
+Traceback (most recent call last):
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\app.py", line 2190, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\app.py", line 1486, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\app.py", line 1484, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\app.py", line 1469, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\OneDrive\Desktop\Codes\AnsiblePower\ansiblePower.py", line 141, in homepage
+    return render_template("index.html", playbooks=playbooks, dark_mode=dark_mode,
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\templating.py", line 151, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\templating.py", line 132, in _render
+    rv = template.render(context)
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\jinja2\environment.py", line 1301, in render
+    self.environment.handle_exception()
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\jinja2\environment.py", line 936, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\pooya\OneDrive\Desktop\Codes\AnsiblePower\templates\index.html", line 1, in top-level template code
+    {% extends 'base.html' %}
+  File "C:\Users\pooya\OneDrive\Desktop\Codes\AnsiblePower\templates\base.html", line 12, in top-level template code
+    {% include 'partials/_header.html' %}
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\OneDrive\Desktop\Codes\AnsiblePower\templates\partials\_header.html", line 2, in top-level template code
+    <a class="navbar-brand" href="{{ url_for('homepage') }}">ansiblePower</a>
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\app.py", line 1697, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\app.py", line 1686, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\werkzeug\routing\map.py", line 950, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'homepage'. Did you mean 'main.homepage' instead?
+2025-08-25 18:23:54,892 ERROR: Exception on / [GET]
+Traceback (most recent call last):
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\app.py", line 2190, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\app.py", line 1486, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\app.py", line 1484, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\app.py", line 1469, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\OneDrive\Desktop\Codes\AnsiblePower\ansiblePower.py", line 141, in homepage
+    return render_template("index.html", playbooks=playbooks, dark_mode=dark_mode,
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\templating.py", line 151, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\templating.py", line 132, in _render
+    rv = template.render(context)
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\jinja2\environment.py", line 1301, in render
+    self.environment.handle_exception()
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\jinja2\environment.py", line 936, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\pooya\OneDrive\Desktop\Codes\AnsiblePower\templates\index.html", line 1, in top-level template code
+    {% extends 'base.html' %}
+  File "C:\Users\pooya\OneDrive\Desktop\Codes\AnsiblePower\templates\base.html", line 12, in top-level template code
+    {% include 'partials/_header.html' %}
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\OneDrive\Desktop\Codes\AnsiblePower\templates\partials\_header.html", line 2, in top-level template code
+    <a class="navbar-brand" href="{{ url_for('homepage') }}">ansiblePower</a>
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\app.py", line 1697, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\app.py", line 1686, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\werkzeug\routing\map.py", line 950, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'homepage'. Did you mean 'main.homepage' instead?
+2025-08-25 18:23:54,717 ERROR: Exception on / [GET]
+Traceback (most recent call last):
+  File "C:\Users\pooya\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\flask\app.py", line 2190, in wsgi_app
+    response = self.full_dispatch_request()

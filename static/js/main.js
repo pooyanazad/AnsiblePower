@@ -60,7 +60,7 @@ document.addEventListener("DOMContentLoaded", function(){
 
     if(showHostsBtn && editHostsBtn && hostsBox && hostsContent && saveHostsBtn && hostsError) {
         showHostsBtn.addEventListener("click", function(){
-            fetch("/get_hosts")
+            fetch("/settings/get_hosts")
             .then(r => r.json())
             .then(data => {
                 if(data.content) {
@@ -77,7 +77,7 @@ document.addEventListener("DOMContentLoaded", function(){
         });
 
         editHostsBtn.addEventListener("click", function(){
-            fetch("/get_hosts")
+            fetch("/settings/get_hosts")
             .then(r => r.json())
             .then(data => {
                 if(data.content) {
@@ -94,7 +94,7 @@ document.addEventListener("DOMContentLoaded", function(){
         });
 
         saveHostsBtn.addEventListener("click", function(){
-            fetch("/save_hosts", {
+            fetch("/settings/save_hosts", {
                 method:"POST",
                 headers: {"Content-Type": "application/x-www-form-urlencoded"},
                 body: "content=" + encodeURIComponent(hostsContent.value)
@@ -115,7 +115,7 @@ document.addEventListener("DOMContentLoaded", function(){
     const statusBox = document.getElementById("status-box");
     if(statusBtn && statusBox) {
         statusBtn.addEventListener("click", function(){
-            fetch("/system_status")
+            fetch("/settings/system_status")
             .then(r => r.json())
             .then(data => {
                 statusBox.style.display = "block";
@@ -128,7 +128,7 @@ document.addEventListener("DOMContentLoaded", function(){
     const clearHistoryBtn = document.getElementById("clear-history-btn");
     if(clearHistoryBtn) {
         clearHistoryBtn.addEventListener("click", function(){
-            fetch("/clear_history", {method: "POST"})
+            fetch("/settings/clear_history", {method: "POST"})
             .then(r => r.json())
             .then(data => {
                 if(data.status === "ok") {
@@ -143,7 +143,7 @@ document.addEventListener("DOMContentLoaded", function(){
     const toggleDarkModeBtn = document.getElementById("toggle-dark-mode");
     if(toggleDarkModeBtn) {
         toggleDarkModeBtn.addEventListener("click", function(){
-            fetch("/toggle_dark_mode", {method: "POST"})
+            fetch("/settings/toggle_dark_mode", {method: "POST"})
             .then(r => r.json())
             .then(data => {
                 location.reload();

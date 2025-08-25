@@ -31,10 +31,10 @@
     <div class="mt-4">
         <h3>Export/Import History</h3>
         <div class="mb-2">
-            <a class="btn btn-outline-primary" href="{{ url_for('export_history', format='json') }}">Export as JSON</a>
-            <a class="btn btn-outline-secondary" href="{{ url_for('export_history', format='csv') }}">Export as CSV</a>
+            <a class="btn btn-outline-primary" href="{{ url_for('history.export_history', format='json') }}">Export as JSON</a>
+        <a class="btn btn-outline-secondary" href="{{ url_for('history.export_history', format='csv') }}">Export as CSV</a>
         </div>
-        <form id="import-history-form" action="{{ url_for('import_history') }}" method="POST" enctype="multipart/form-data">
+        <form id="import-history-form" action="{{ url_for('history.import_history') }}" method="POST" enctype="multipart/form-data">
             <div class="form-group">
                 <label for="import-file">Import History File (.json or .csv)</label>
                 <input type="file" name="file" id="import-file" class="form-control-file" accept=".json,.csv" required>

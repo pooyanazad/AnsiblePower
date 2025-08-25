@@ -27,7 +27,7 @@
             e.preventDefault();
             const playbooksDir = document.getElementById('playbooks_dir').value;
             
-            fetch('/update_playbooks_dir', {
+            fetch('/settings/update_playbooks_dir', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
