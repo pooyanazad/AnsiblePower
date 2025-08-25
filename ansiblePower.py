@@ -51,16 +51,16 @@ logger.addHandler(log_handler)
 # Configuration Variables and Helper Functions
 # =============================================================================
 CONFIG_FILE = "data/config.json"
-DEFAULT_PLAYBOOKS_DIR = "/home/pooyan/ansible/playbooks"  # Default path
-HOSTS_FILE = "/etc/ansible/hosts"                  # Adjust as needed.
+DEFAULT_PLAYBOOKS_DIR = "playbooks"  # Local playbooks directory
+HOSTS_FILE = "data/hosts"                  # Local hosts file for Windows compatibility
 HISTORY_FILE = "data/history.json"
 app = Flask(__name__)
 app.secret_key = "some_random_secret_key"  # Replace with your secret key
 
 # Configuration variables
 CONFIG_FILE = "data/config.json"
-DEFAULT_PLAYBOOKS_DIR = "/home/pooyan/ansible/playbooks"  # Default path
-HOSTS_FILE = "/etc/ansible/hosts"                  # Adjust as needed.
+DEFAULT_PLAYBOOKS_DIR = "playbooks"  # Local playbooks directory
+HOSTS_FILE = "data/hosts"                  # Local hosts file for Windows compatibility
 HISTORY_FILE = "data/history.json"
 
 def load_config():
@@ -83,6 +83,10 @@ def save_config(config):
 def get_playbooks_dir():
     config = load_config()
     return config.get("playbooks_dir", DEFAULT_PLAYBOOKS_DIR)
+
+def get_hosts_file():
+    config = load_config()
+    return config.get("hosts_file", HOSTS_FILE)
 
 def load_history():
     if os.path.exists(HISTORY_FILE):
@@ -122,10 +126,10 @@ def homepage():
     error = None
     prompt_for_dir = False
 
- if not os.path.exists(playbooks_dir):
- prompt_for_dir = True
- playbooks = []
- elif not (os.access(playbooks_dir, os.R_OK) and os.access(playbooks_dir, os.W_OK)):
+    if not os.path.exists(playbooks_dir):
+        prompt_for_dir = True
+        playbooks = []
+    elif not (os.access(playbooks_dir, os.R_OK) and os.access(playbooks_dir, os.W_OK)):
         error = (f"Insufficient permissions for the playbooks directory '{playbooks_dir}'. "
                  "Ensure the directory is readable and writable by the current user.")
         playbooks = []
@@ -206,12 +210,13 @@ def history():
     history_data = load_history()
     return render_template("history.html", history=history_data, dark_mode=dark_mode)
     
-@app.route("/settings")
+@settings_bp.route("/")
 def settings():
     dark_mode = session.get("dark_mode", False)
     config = load_config()
     playbooks_dir = config.get("playbooks_dir", DEFAULT_PLAYBOOKS_DIR)
-    return render_template("settings.html", dark_mode=dark_mode, playbooks_dir=playbooks_dir)
+    hosts_file = config.get("hosts_file", HOSTS_FILE)
+    return render_template("settings.html", dark_mode=dark_mode, playbooks_dir=playbooks_dir, hosts_file=hosts_file)
 
 @settings_bp.route("/update_playbooks_dir", methods=["POST"])
 def update_playbooks_dir():
@@ -225,19 +230,32 @@ def update_playbooks_dir():
     logger.info("Updated playbooks directory to: %s", new_dir)
     return jsonify({"status": "ok", "message": "Playbooks directory updated successfully"})
 
+@settings_bp.route("/update_hosts_file", methods=["POST"])
+def update_hosts_file():
+    new_hosts_file = request.form.get("hosts_file", "").strip()
+    if not new_hosts_file:
+        return jsonify({"error": "Hosts file path cannot be empty"}), 400
+    
+    config = load_config()
+    config["hosts_file"] = new_hosts_file
+    save_config(config)
+    logger.info("Updated hosts file path to: %s", new_hosts_file)
+    return jsonify({"status": "ok", "message": "Hosts file path updated successfully"})
+
 @settings_bp.route("/get_hosts", methods=["GET"])
 def get_hosts():
     try:
-        if not os.access(HOSTS_FILE, os.R_OK):
-            logger.error("Read permission denied for hosts file: %s", HOSTS_FILE)
+        hosts_file = get_hosts_file()
+        if not os.access(hosts_file, os.R_OK):
+            logger.error("Read permission denied for hosts file: %s", hosts_file)
             return jsonify({"error": "Add read permission to user to file"}), 403
-        if os.path.exists(HOSTS_FILE):
-            with open(HOSTS_FILE, "r") as f:
+        if os.path.exists(hosts_file):
+            with open(hosts_file, "r") as f:
                 content = f.read()
             logger.info("Hosts file read successfully")
             return jsonify({"content": content})
         else:
-            logger.error("Hosts file not found: %s", HOSTS_FILE)
+            logger.error("Hosts file not found: %s", hosts_file)
             return jsonify({"error": "Hosts file not found"}), 404
     except Exception as e:
         logger.exception("Error getting hosts file")
@@ -247,10 +265,11 @@ def get_hosts():
 def save_hosts():
     new_content = request.form.get("content", "")
     try:
-        if not os.access(HOSTS_FILE, os.W_OK):
-            logger.error("Write permission denied for hosts file: %s", HOSTS_FILE)
+        hosts_file = get_hosts_file()
+        if not os.access(hosts_file, os.W_OK):
+            logger.error("Write permission denied for hosts file: %s", hosts_file)
             return jsonify({"error": "Please add write permission to host file"}), 403
-        with open(HOSTS_FILE, "w") as f:
+        with open(hosts_file, "w") as f:
             f.write(new_content)
         logger.info("Hosts file saved successfully")
         return jsonify({"status": "ok"})
@@ -348,17 +367,33 @@ if __name__ == "__main__":
     try:
         if not os.path.exists("data"):
             os.makedirs("data")
+        if not os.path.exists(DEFAULT_PLAYBOOKS_DIR):
+            os.makedirs(DEFAULT_PLAYBOOKS_DIR)
+            # Create a sample playbook
+            sample_playbook = os.path.join(DEFAULT_PLAYBOOKS_DIR, "sample.yml")
+            with open(sample_playbook, "w") as f:
+                f.write("---\n# Sample Ansible Playbook\n- name: Sample playbook\n  hosts: all\n  tasks:\n    - name: Print hello message\n      debug:\n        msg: \"Hello from AnsiblePower!\"\n")
         if not os.path.exists(HISTORY_FILE):
             save_history([])
         if not os.path.exists(CONFIG_FILE):
-            save_config({"playbooks_dir": DEFAULT_PLAYBOOKS_DIR})
-        app.run(host="0.0.0.0", port=5000)
- app.register_blueprint(main_bp)
- app.register_blueprint(history_bp)
- # Register blueprints
- app.register_blueprint(main_bp)
- app.register_blueprint(history_bp)
- app.register_blueprint(settings_bp)
+            save_config({"playbooks_dir": DEFAULT_PLAYBOOKS_DIR, "hosts_file": HOSTS_FILE})
+        
+        # Create hosts file if it doesn't exist (using configurable path)
+        hosts_file_path = get_hosts_file()
+        if not os.path.exists(hosts_file_path):
+            # Create directory if it doesn't exist
+            hosts_dir = os.path.dirname(hosts_file_path)
+            if hosts_dir and not os.path.exists(hosts_dir):
+                os.makedirs(hosts_dir)
+            with open(hosts_file_path, "w") as f:
+                f.write("# Ansible hosts file\n# Add your hosts here\n[webservers]\n# web1.example.com\n# web2.example.com\n\n[databases]\n# db1.example.com\n")
+        
+        # Register blueprints
+        app.register_blueprint(main_bp)
+        app.register_blueprint(history_bp)
+        app.register_blueprint(settings_bp)
+        
+        app.run(host="0.0.0.0", port=5000, debug=True)
     except Exception as e:
         logger.exception("Error starting application")
         raise

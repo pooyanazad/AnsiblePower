@@ -51,6 +51,26 @@
             <div id="playbooks-dir-message" class="mt-2" style="display: none;"></div>
         </div>
     </div>
+
+    <div class="card mt-4">
+        <div class="card-header {% if dark_mode %}bg-dark text-light{% endif %}">
+            <h3 class="{% if dark_mode %}text-light{% endif %}">Hosts File Path</h3>
+        </div>
+        <div class="card-body {% if dark_mode %}bg-dark{% endif %}">
+            <form id="hosts-file-form">
+                <div class="form-group">
+                    <label for="hosts_file" class="{% if dark_mode %}text-light{% endif %}">Path to your Ansible hosts file:</label>
+                    <input type="text" class="form-control {% if dark_mode %}bg-dark text-light{% endif %}" id="hosts_file" name="hosts_file" 
+                           value="{{ hosts_file }}" required>
+                    <small class="form-text {% if dark_mode %}text-light{% else %}text-muted{% endif %}">
+                        Specify the full path to your Ansible hosts/inventory file.
+                    </small>
+                </div>
+                <button type="submit" class="btn btn-primary mt-2">Save</button>
+            </form>
+            <div id="hosts-file-message" class="mt-2" style="display: none;"></div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -59,7 +79,7 @@
         const playbooksDir = document.getElementById('playbooks_dir').value;
         const messageDiv = document.getElementById('playbooks-dir-message');
         
-        fetch('/update_playbooks_dir', {
+        fetch('/settings/update_playbooks_dir', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -87,6 +107,42 @@
             messageDiv.style.display = 'block';
             messageDiv.className = 'alert alert-danger';
             messageDiv.textContent = 'An error occurred while updating the playbooks directory.';
+        });
+    });
+
+    document.getElementById('hosts-file-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const hostsFile = document.getElementById('hosts_file').value;
+        const messageDiv = document.getElementById('hosts-file-message');
+        
+        fetch('/settings/update_hosts_file', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'hosts_file=' + encodeURIComponent(hostsFile)
+        })
+        .then(response => response.json())
+        .then(data => {
+            messageDiv.style.display = 'block';
+            if (data.status === 'ok') {
+                messageDiv.className = 'alert alert-success';
+                messageDiv.textContent = data.message;
+            } else {
+                messageDiv.className = 'alert alert-danger';
+                messageDiv.textContent = data.error;
+            }
+            
+            // Hide the message after 3 seconds
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 3000);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            messageDiv.style.display = 'block';
+            messageDiv.className = 'alert alert-danger';
+            messageDiv.textContent = 'An error occurred while updating the hosts file path.';
         });
     });
 </script>

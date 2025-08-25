@@ -1,0 +1,8 @@
+# Ansible hosts file
+# Add your hosts here
+[webservers]
+# web1.example.com
+# web2.example.com
+
+[databases]
+# db1.example.com
