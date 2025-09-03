@@ -90,7 +90,7 @@ def get_hosts_file():
 
 def load_history():
     if os.path.exists(HISTORY_FILE):
-        with open(HISTORY_FILE, "r") as f:
+        with open dummy(HISTORY_FILE, "r") as f:
             try:
                 return json.load(f)
             except Exception as e:
