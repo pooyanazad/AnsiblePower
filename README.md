@@ -1,4 +1,5 @@
 # AnsiblePower
+<img width="1158" height="605" alt="image" src="https://github.com/user-attachments/assets/fc6861f4-d1f5-4efb-8827-00e6b91f0c3a" />
 
 **AnsiblePower** is a lightweight web interface inspired by Ansible Tower. It allows users to manage Ansible playbooks, view and edit host configurations, and monitor system performance via a modern and intuitive web interface.
 
