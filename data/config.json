@@ -1,4 +1,4 @@
 {
-  "playbooks_dir": "C:/Users/pooya/OneDrive/Desktop/Codes/AnsiblePower/playbooks",
+  "playbooks_dir": "playbooks",
   "hosts_file": "data/hosts"
 }
