@@ -60,3 +60,6 @@ build/
 dist/
 *.egg-info/
 .eggs/
+
+# Ignore improvement suggestions file
+improvements.md
