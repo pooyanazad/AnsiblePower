@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-# Blueprint for the Flask application
-# This file contains the Flask application blueprint.
+# AnsiblePower - Lightweight Ansible Web Interface
+# Main application file with Flask blueprints for playbook management.
 import os
 import json
 import subprocess
 import psutil
 import csv
 import logging
+from datetime import datetime
 from io import StringIO
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Response
 
@@ -50,18 +51,13 @@ logger.addHandler(log_handler)
 # =============================================================================
 # Configuration Variables and Helper Functions
 # =============================================================================
-CONFIG_FILE = "data/config.json"
-DEFAULT_PLAYBOOKS_DIR = "playbooks"  # Local playbooks directory
-HOSTS_FILE = "data/hosts"                  # Local hosts file for Windows compatibility
-HISTORY_FILE = "data/history.json"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_FILE = os.path.join(BASE_DIR, "data/config.json")
+DEFAULT_PLAYBOOKS_DIR = os.path.join(BASE_DIR, "playbooks")
+HOSTS_FILE = os.path.join(BASE_DIR, "data/hosts")
+HISTORY_FILE = os.path.join(BASE_DIR, "data/history.json")
 app = Flask(__name__)
-app.secret_key = "some_random_secret_key"  # Replace with your secret key
-
-# Configuration variables
-CONFIG_FILE = "data/config.json"
-DEFAULT_PLAYBOOKS_DIR = "playbooks"  # Local playbooks directory
-HOSTS_FILE = "data/hosts"                  # Local hosts file for Windows compatibility
-HISTORY_FILE = "data/history.json"
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-change-in-production")
 
 def load_config():
     if os.path.exists(CONFIG_FILE):
@@ -154,6 +150,14 @@ def run_playbook():
 
     playbooks_dir = get_playbooks_dir()
     playbook_path = os.path.join(playbooks_dir, playbook_name)
+
+    # Path traversal protection: ensure resolved path is within playbooks_dir
+    real_playbook = os.path.realpath(playbook_path)
+    real_dir = os.path.realpath(playbooks_dir)
+    if not real_playbook.startswith(real_dir + os.sep) and real_playbook != real_dir:
+        logger.error("Path traversal attempt blocked: %s", playbook_name)
+        return jsonify({"error": "Invalid playbook path"}), 400
+
     if not os.path.exists(playbook_path):
         logger.error("Playbook does not exist: %s", playbook_path)
         return jsonify({"error": "Playbook does not exist"}), 404
@@ -170,7 +174,7 @@ def run_playbook():
         output = "Unexpected error occurred: " + str(e)
     if not output.strip():
         output = "No output produced."
-    timestamp = subprocess.check_output(["date"]).decode("utf-8").strip()
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     history = load_history()
     history.append({
         "action": "run",
@@ -191,6 +195,14 @@ def show_playbook():
 
     playbooks_dir = get_playbooks_dir()
     playbook_path = os.path.join(playbooks_dir, playbook_name)
+
+    # Path traversal protection: ensure resolved path is within playbooks_dir
+    real_playbook = os.path.realpath(playbook_path)
+    real_dir = os.path.realpath(playbooks_dir)
+    if not real_playbook.startswith(real_dir + os.sep) and real_playbook != real_dir:
+        logger.error("Path traversal attempt blocked: %s", playbook_name)
+        return jsonify({"error": "Invalid playbook path"}), 400
+
     if not os.path.exists(playbook_path):
         logger.error("Playbook does not exist: %s", playbook_path)
         return jsonify({"error": "Playbook does not exist"}), 404
@@ -246,17 +258,16 @@ def update_hosts_file():
 def get_hosts():
     try:
         hosts_file = get_hosts_file()
+        if not os.path.exists(hosts_file):
+            logger.error("Hosts file not found: %s", hosts_file)
+            return jsonify({"error": "Hosts file not found"}), 404
         if not os.access(hosts_file, os.R_OK):
             logger.error("Read permission denied for hosts file: %s", hosts_file)
             return jsonify({"error": "Add read permission to user to file"}), 403
-        if os.path.exists(hosts_file):
-            with open(hosts_file, "r") as f:
-                content = f.read()
-            logger.info("Hosts file read successfully")
-            return jsonify({"content": content})
-        else:
-            logger.error("Hosts file not found: %s", hosts_file)
-            return jsonify({"error": "Hosts file not found"}), 404
+        with open(hosts_file, "r") as f:
+            content = f.read()
+        logger.info("Hosts file read successfully")
+        return jsonify({"content": content})
     except Exception as e:
         logger.exception("Error getting hosts file")
         return jsonify({"error": "Unexpected error occurred"}), 500
@@ -266,6 +277,9 @@ def save_hosts():
     new_content = request.form.get("content", "")
     try:
         hosts_file = get_hosts_file()
+        if not os.path.exists(hosts_file):
+            logger.error("Hosts file not found: %s", hosts_file)
+            return jsonify({"error": "Hosts file not found. Please check the path in settings."}), 404
         if not os.access(hosts_file, os.W_OK):
             logger.error("Write permission denied for hosts file: %s", hosts_file)
             return jsonify({"error": "Please add write permission to host file"}), 403
@@ -353,6 +367,19 @@ def import_history():
                 data.append(row)
         else:
             return jsonify({"error": "Unsupported file type. Only .json and .csv allowed."}), 400
+
+        # Validate imported data structure
+        if not isinstance(data, list):
+            return jsonify({"error": "Invalid data format: expected a list of records."}), 400
+        valid_keys = {"action", "playbook", "output", "time"}
+        for record in data:
+            if not isinstance(record, dict):
+                return jsonify({"error": "Invalid record format: each entry must be a dictionary."}), 400
+            # Sanitize: only keep known keys
+            for key in list(record.keys()):
+                if key not in valid_keys:
+                    del record[key]
+
         save_history(data)
         logger.info("History imported from %s", file.filename)
         return jsonify({"status": "ok", "message": "History imported successfully."})
@@ -393,7 +420,8 @@ if __name__ == "__main__":
             with open(hosts_file_path, "w") as f:
                 f.write("# Ansible hosts file\n# Add your hosts here\n[webservers]\n# web1.example.com\n# web2.example.com\n\n[databases]\n# db1.example.com\n")
         
-        app.run(host="0.0.0.0", port=5000, debug=True)
+        debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
+        app.run(host="0.0.0.0", port=5000, debug=debug_mode)
     except Exception as e:
         logger.exception("Error starting application")
         raise
