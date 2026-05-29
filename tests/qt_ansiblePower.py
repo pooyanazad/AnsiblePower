@@ -2,106 +2,124 @@ import unittest
 import os
 import json
 import sys
-from unittest.mock import patch, mock_open
+import tempfile
+import shutil
 
 # Add parent directory to path to import ansiblePower
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from ansiblePower import load_config, save_config, load_history, save_history
 
-class TestConfigAndHistory(unittest.TestCase):
+import ansiblePower
+
+
+class TestFlaskRoutes(unittest.TestCase):
+    """Quality tests for Flask route responses and API endpoints."""
 
     def setUp(self):
-        # Set up temporary file paths for testing
-        self.test_config_file = "test_config.json"
-        self.test_history_file = "test_history.json"
-        self.default_playbooks_dir = "/path/to/default/playbooks"
-        # Patch the constants in the original module
-        patcher_config = patch('ansiblePower.CONFIG_FILE', self.test_config_file)
-        patcher_history = patch('ansiblePower.HISTORY_FILE', self.test_history_file)
-        patcher_default_dir = patch('ansiblePower.DEFAULT_PLAYBOOKS_DIR', self.default_playbooks_dir)
-        self.mock_config = patcher_config.start()
-        self.mock_history = patcher_history.start()
-        self.mock_default_dir = patcher_default_dir.start()
-        self.addCleanup(patcher_config.stop)
-        self.addCleanup(patcher_history.stop)
-        self.addCleanup(patcher_default_dir.stop)
+        self.test_dir = tempfile.mkdtemp()
+        self.playbooks_dir = os.path.join(self.test_dir, "playbooks")
+        os.makedirs(self.playbooks_dir)
+        self.config_file = os.path.join(self.test_dir, "config.json")
+        self.hosts_file = os.path.join(self.test_dir, "hosts")
+        self.history_file = os.path.join(self.test_dir, "history.json")
 
-        # Ensure test files do not exist before each test
-        if os.path.exists(self.test_config_file):
-            os.remove(self.test_config_file)
-        if os.path.exists(self.test_history_file):
-            os.remove(self.test_history_file)
+        # Create test config
+        with open(self.config_file, "w") as f:
+            json.dump({"playbooks_dir": self.playbooks_dir, "hosts_file": self.hosts_file}, f)
+
+        # Create test hosts file
+        with open(self.hosts_file, "w") as f:
+            f.write("[test]\nlocalhost ansible_connection=local\n")
+
+        # Create empty history
+        with open(self.history_file, "w") as f:
+            json.dump([], f)
+
+        # Create a sample playbook
+        with open(os.path.join(self.playbooks_dir, "test.yml"), "w") as f:
+            f.write("---\n- name: Test\n  hosts: all\n  tasks:\n    - debug: msg='hello'\n")
+
+        # Patch module-level constants
+        self.original_config = ansiblePower.CONFIG_FILE
+        self.original_history = ansiblePower.HISTORY_FILE
+        ansiblePower.CONFIG_FILE = self.config_file
+        ansiblePower.HISTORY_FILE = self.history_file
+
+        ansiblePower.app.config["TESTING"] = True
+        self.client = ansiblePower.app.test_client()
 
     def tearDown(self):
-        # Clean up test files after each test
-        if os.path.exists(self.test_config_file):
-            os.remove(self.test_config_file)
-        if os.path.exists(self.test_history_file):
-            os.remove(self.test_history_file)
+        ansiblePower.CONFIG_FILE = self.original_config
+        ansiblePower.HISTORY_FILE = self.original_history
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
-    # Test load_config
-    def test_load_config_existing_valid(self):
-        config_data = {"playbooks_dir": "/path/to/playbooks"}
-        with open(self.test_config_file, "w") as f:
-            json.dump(config_data, f)
-        self.assertEqual(load_config(), config_data)
+    def test_homepage_returns_200(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
 
-    def test_load_config_file_not_found(self):
-        self.assertEqual(load_config(), {"playbooks_dir": self.default_playbooks_dir})
+    def test_homepage_lists_playbooks(self):
+        response = self.client.get("/")
+        self.assertIn(b"test.yml", response.data)
 
-    def test_load_config_invalid_json(self):
-        with open(self.test_config_file, "w") as f:
-            f.write("invalid json")
-        self.assertEqual(load_config(), {"playbooks_dir": self.default_playbooks_dir})
+    def test_history_page_returns_200(self):
+        response = self.client.get("/history/")
+        self.assertEqual(response.status_code, 200)
 
-    # Test save_config
-    def test_save_config_success(self):
-        config_data = {"playbooks_dir": "/new/path"}
-        save_config(config_data)
-        self.assertTrue(os.path.exists(self.test_config_file))
-        with open(self.test_config_file, "r") as f:
-            loaded_config = json.load(f)
-        self.assertEqual(loaded_config, config_data)
+    def test_settings_page_returns_200(self):
+        response = self.client.get("/settings/")
+        self.assertEqual(response.status_code, 200)
 
-    @patch('ansiblePower.open', new_callable=mock_open)
-    def test_save_config_write_error(self, mock_file):
-        mock_file.side_effect = IOError("Permission denied")
-        config_data = {"playbooks_dir": "/new/path"}
-        with self.assertLogs('ansiblePower', level='ERROR') as cm:
-            save_config(config_data)
-        self.assertIn("Error saving config:", cm.output[0])
+    def test_show_playbook_returns_content(self):
+        response = self.client.post("/show_playbook", data={"playbook": "test.yml"})
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertIn("content", data)
+        self.assertIn("Test", data["content"])
 
-    # Test load_history
-    def test_load_history_existing_valid(self):
-        history_data = [{"action": "run", "playbook": "test.yml", "time": "now", "output": "success"}]
-        with open(self.test_history_file, "w") as f:
-            json.dump(history_data, f)
-        self.assertEqual(load_history(), history_data)
+    def test_show_playbook_missing_name_returns_400(self):
+        response = self.client.post("/show_playbook", data={})
+        self.assertEqual(response.status_code, 400)
 
-    def test_load_history_file_not_found(self):
-        self.assertEqual(load_history(), [])
+    def test_show_playbook_nonexistent_returns_404(self):
+        response = self.client.post("/show_playbook", data={"playbook": "nonexistent.yml"})
+        self.assertEqual(response.status_code, 404)
 
-    def test_load_history_invalid_json(self):
-        with open(self.test_history_file, "w") as f:
-            f.write("invalid json history")
-        self.assertEqual(load_history(), [])
+    def test_show_playbook_path_traversal_blocked(self):
+        response = self.client.post("/show_playbook", data={"playbook": "../../etc/passwd"})
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.data)
+        self.assertIn("Invalid playbook path", data["error"])
 
-    # Test save_history
-    def test_save_history_success(self):
-        history_data = [{"action": "show", "playbook": "other.yml", "time": "later", "output": "content"}]
-        save_history(history_data)
-        self.assertTrue(os.path.exists(self.test_history_file))
-        with open(self.test_history_file, "r") as f:
-            loaded_history = json.load(f)
-        self.assertEqual(loaded_history, history_data)
+    def test_run_playbook_missing_name_returns_400(self):
+        response = self.client.post("/run_playbook", data={})
+        self.assertEqual(response.status_code, 400)
 
-    @patch('ansiblePower.open', new_callable=mock_open)
-    def test_save_history_write_error(self, mock_file):
-        mock_file.side_effect = IOError("Disk full")
-        history_data = [{"action": "save", "playbook": "fail.yml"}]
-        with self.assertLogs('ansiblePower', level='ERROR') as cm:
-            save_history(history_data)
-        self.assertIn("Error saving history:", cm.output[0])
+    def test_run_playbook_path_traversal_blocked(self):
+        response = self.client.post("/run_playbook", data={"playbook": "../../../etc/shadow"})
+        self.assertEqual(response.status_code, 400)
 
-if __name__ == '__main__':
+    def test_get_hosts_returns_content(self):
+        response = self.client.get("/settings/get_hosts")
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertIn("content", data)
+
+    def test_clear_history(self):
+        # Add a dummy history entry first
+        with open(self.history_file, "w") as f:
+            json.dump([{"action": "run", "playbook": "test.yml", "time": "now", "output": "ok"}], f)
+        response = self.client.post("/settings/clear_history")
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertEqual(data["status"], "ok")
+
+    def test_export_history_json(self):
+        response = self.client.get("/history/export_history?format=json")
+        self.assertEqual(response.status_code, 200)
+
+    def test_export_history_csv(self):
+        response = self.client.get("/history/export_history?format=csv")
+        self.assertEqual(response.status_code, 200)
+
+
+if __name__ == "__main__":
     unittest.main()

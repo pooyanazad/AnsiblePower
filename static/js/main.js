@@ -12,7 +12,8 @@ document.addEventListener("DOMContentLoaded", function(){
     document.querySelectorAll(".run-btn").forEach(btn => {
         btn.addEventListener("click", function(){
             const playbook = btn.getAttribute("data-playbook");
-            const outputEl = document.getElementById("output-" + playbook);
+            const index = btn.getAttribute("data-index");
+            const outputEl = document.getElementById("output-" + index);
             outputEl.style.display = "block";
             outputEl.textContent = "Running, Please wait...";
 
@@ -26,6 +27,9 @@ document.addEventListener("DOMContentLoaded", function(){
                 setTimeout(() => {
                     outputEl.textContent = data.output || data.error;
                 }, 1000);
+            })
+            .catch(err => {
+                outputEl.textContent = "Error: Could not connect to server. " + err.message;
             });
         });
     });
@@ -34,7 +38,8 @@ document.addEventListener("DOMContentLoaded", function(){
     document.querySelectorAll(".show-btn").forEach(btn => {
         btn.addEventListener("click", function(){
             const playbook = btn.getAttribute("data-playbook");
-            const outputEl = document.getElementById("output-" + playbook);
+            const index = btn.getAttribute("data-index");
+            const outputEl = document.getElementById("output-" + index);
             outputEl.style.display = "block";
             outputEl.textContent = "Loading...";
 
@@ -46,6 +51,9 @@ document.addEventListener("DOMContentLoaded", function(){
             .then(res => res.json())
             .then(data => {
                 outputEl.textContent = data.content || data.error || "Error fetching content.";
+            })
+            .catch(err => {
+                outputEl.textContent = "Error: Could not connect to server. " + err.message;
             });
         });
     });
