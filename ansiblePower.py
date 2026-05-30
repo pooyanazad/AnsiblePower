@@ -10,6 +10,8 @@ import logging
 from datetime import datetime
 from io import StringIO
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Response
+from flask_wtf.csrf import CSRFProtect
+from flask_httpauth import HTTPBasicAuth
 
 # =============================================================================
 # Custom Logging Handler: Keeps a maximum of 200 lines with newest messages at the top.
@@ -77,6 +79,23 @@ def _find_ansible_playbook():
 ANSIBLE_PLAYBOOK = _find_ansible_playbook()
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-change-in-production")
+
+csrf = CSRFProtect(app)
+auth = HTTPBasicAuth()
+
+@auth.verify_password
+def verify_password(username, password):
+    admin_user = os.environ.get("ADMIN_USERNAME", "admin")
+    admin_pass = os.environ.get("ADMIN_PASSWORD", "admin")
+    if username == admin_user and password == admin_pass:
+        return username
+    return None
+
+@app.before_request
+def before_request():
+    if app.config.get("TESTING") or request.endpoint == "static":
+        return None
+    return auth.login_required(lambda: None)()
 
 def load_config():
     if os.path.exists(CONFIG_FILE):

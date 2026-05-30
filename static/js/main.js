@@ -1,4 +1,6 @@
 document.addEventListener("DOMContentLoaded", function(){
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
     // Optional: Sidebar toggle functionality if you add a toggle button.
     const toggleBtn = document.getElementById("toggle-sidebar-btn");
     if(toggleBtn) {
@@ -19,7 +21,10 @@ document.addEventListener("DOMContentLoaded", function(){
 
             fetch("/run_playbook", {
                 method: "POST",
-                headers: {"Content-Type": "application/x-www-form-urlencoded"},
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "X-CSRFToken": csrfToken
+                },
                 body: "playbook=" + encodeURIComponent(playbook)
             })
             .then(res => res.json())
@@ -45,7 +50,10 @@ document.addEventListener("DOMContentLoaded", function(){
 
             fetch("/show_playbook", {
                 method: "POST",
-                headers: {"Content-Type": "application/x-www-form-urlencoded"},
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "X-CSRFToken": csrfToken
+                },
                 body: "playbook=" + encodeURIComponent(playbook)
             })
             .then(res => res.json())
@@ -104,7 +112,10 @@ document.addEventListener("DOMContentLoaded", function(){
         saveHostsBtn.addEventListener("click", function(){
             fetch("/settings/save_hosts", {
                 method:"POST",
-                headers: {"Content-Type": "application/x-www-form-urlencoded"},
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "X-CSRFToken": csrfToken
+                },
                 body: "content=" + encodeURIComponent(hostsContent.value)
             })
             .then(r => r.json())
@@ -136,7 +147,10 @@ document.addEventListener("DOMContentLoaded", function(){
     const clearHistoryBtn = document.getElementById("clear-history-btn");
     if(clearHistoryBtn) {
         clearHistoryBtn.addEventListener("click", function(){
-            fetch("/settings/clear_history", {method: "POST"})
+            fetch("/settings/clear_history", {
+                method: "POST",
+                headers: {"X-CSRFToken": csrfToken}
+            })
             .then(r => r.json())
             .then(data => {
                 if(data.status === "ok") {
@@ -151,7 +165,10 @@ document.addEventListener("DOMContentLoaded", function(){
     const toggleDarkModeBtn = document.getElementById("toggle-dark-mode");
     if(toggleDarkModeBtn) {
         toggleDarkModeBtn.addEventListener("click", function(){
-            fetch("/settings/toggle_dark_mode", {method: "POST"})
+            fetch("/settings/toggle_dark_mode", {
+                method: "POST",
+                headers: {"X-CSRFToken": csrfToken}
+            })
             .then(r => r.json())
             .then(data => {
                 location.reload();

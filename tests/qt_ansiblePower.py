@@ -45,6 +45,7 @@ class TestFlaskRoutes(unittest.TestCase):
         ansiblePower.HISTORY_FILE = self.history_file
 
         ansiblePower.app.config["TESTING"] = True
+        ansiblePower.app.config["WTF_CSRF_ENABLED"] = False
         self.client = ansiblePower.app.test_client()
 
     def tearDown(self):

@@ -35,6 +35,7 @@
         <a class="btn btn-outline-secondary" href="{{ url_for('history.export_history', format='csv') }}">Export as CSV</a>
         </div>
         <form id="import-history-form" action="{{ url_for('history.import_history') }}" method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label for="import-file">Import History File (.json or .csv)</label>
                 <input type="file" name="file" id="import-file" class="form-control-file" accept=".json,.csv" required>

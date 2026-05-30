@@ -59,6 +59,7 @@ class SmokeTestAnsiblePower(unittest.TestCase):
         
         # Create Flask test client
         ansiblePower.app.config['TESTING'] = True
+        ansiblePower.app.config['WTF_CSRF_ENABLED'] = False
         self.client = ansiblePower.app.test_client()
 
     def tearDown(self):
