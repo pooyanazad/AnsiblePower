@@ -56,6 +56,25 @@ CONFIG_FILE = os.path.join(BASE_DIR, "data/config.json")
 DEFAULT_PLAYBOOKS_DIR = os.path.join(BASE_DIR, "playbooks")
 HOSTS_FILE = os.path.join(BASE_DIR, "data/hosts")
 HISTORY_FILE = os.path.join(BASE_DIR, "data/history.json")
+
+# Resolve ansible-playbook: prefer the venv binary, then system PATH, then env override
+def _find_ansible_playbook():
+    # 1. Respect explicit environment override
+    env_override = os.environ.get("ANSIBLE_PLAYBOOK_BIN")
+    if env_override:
+        return env_override
+    # 2. Check venv next to this file (most common dev setup)
+    venv_bin = os.path.join(BASE_DIR, "venv", "bin", "ansible-playbook")
+    if os.path.isfile(venv_bin):
+        return venv_bin
+    # 3. Fall back to whatever is on PATH
+    import shutil
+    system_bin = shutil.which("ansible-playbook")
+    if system_bin:
+        return system_bin
+    return "ansible-playbook"  # will raise a clear error at runtime
+
+ANSIBLE_PLAYBOOK = _find_ansible_playbook()
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-change-in-production")
 
@@ -162,7 +181,15 @@ def run_playbook():
         logger.error("Playbook does not exist: %s", playbook_path)
         return jsonify({"error": "Playbook does not exist"}), 404
 
-    cmd = ["ansible-playbook", playbook_path]
+    cmd = [ANSIBLE_PLAYBOOK, playbook_path]
+
+    # Pass the inventory/hosts file if configured
+    hosts_file = get_hosts_file()
+    if os.path.exists(hosts_file):
+        cmd += ["-i", hosts_file]
+    else:
+        # No hosts file — fall back to localhost for convenience
+        cmd += ["-i", "localhost,", "--connection=local"]
     try:
         output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
         output = output.decode("utf-8")

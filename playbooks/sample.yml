@@ -1,8 +1,14 @@
 ---
-# Sample Ansible Playbook
+# Sample Ansible Playbook — runs locally, no remote hosts needed
 - name: Sample playbook
-  hosts: all
+  hosts: localhost
+  connection: local
+  gather_facts: false
   tasks:
     - name: Print hello message
       debug:
-        msg: "Hello from AnsiblePower!"
+        msg: "Hello from AnsiblePower! Ansible is working correctly."
+
+    - name: Show current date and time
+      debug:
+        msg: "Current time: {{ ansible_date_time.iso8601 | default(lookup('pipe', 'date')) }}"
