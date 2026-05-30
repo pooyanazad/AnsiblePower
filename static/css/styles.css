@@ -228,6 +228,15 @@ h1, h2, h3, h4, h5, h6 {
     color: #e2e8f0;
 }
 
+/* Fix text visibility in dark mode */
+.dark label,
+.dark p,
+.dark pre,
+.dark .text-muted,
+.dark .form-text {
+    color: #cbd5e0 !important;
+}
+
 /* Card styling */
 .card {
     background: #ffffff;
