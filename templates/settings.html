@@ -25,13 +25,6 @@
         <button id="clear-history-btn" class="btn btn-warning">Clear History</button>
     </div>
 
-    <div class="mb-4">
-        <h2>Appearance</h2>
-        <button id="toggle-dark-mode" class="btn btn-dark">
-            {% if dark_mode %}Disable Dark Mode{% else %}Enable Dark Mode{% endif %}
-        </button>
-    </div>
-
     <div class="card mt-4">
         <div class="card-header {% if dark_mode %}bg-dark text-light{% endif %}">
             <h3 class="{% if dark_mode %}text-light{% endif %}">Playbooks Directory</h3>
@@ -83,6 +76,7 @@
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
             },
             body: 'playbooks_dir=' + encodeURIComponent(playbooksDir)
         })
@@ -119,6 +113,7 @@
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
             },
             body: 'hosts_file=' + encodeURIComponent(hostsFile)
         })

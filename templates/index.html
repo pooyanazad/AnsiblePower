@@ -31,6 +31,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                 },
                 body: 'playbooks_dir=' + encodeURIComponent(playbooksDir)
             })
@@ -55,8 +56,8 @@
             <div class="d-flex w-100 justify-content-between">
                 <h5 class="mb-1">{{ playbook }}</h5>
                 <div>
-                    <button class="btn btn-sm btn-success run-btn" data-playbook="{{ playbook }}" data-index="{{ loop.index }}">Run</button>
-                    <button class="btn btn-sm btn-info show-btn" data-playbook="{{ playbook }}" data-index="{{ loop.index }}">Show</button>
+                    <button class="btn btn-sm btn-success run-btn" data-playbook="{{ playbook }}" data-index="{{ loop.index }}"><i class="fas fa-play mr-1"></i> Run</button>
+                    <button class="btn btn-sm btn-info show-btn" data-playbook="{{ playbook }}" data-index="{{ loop.index }}"><i class="fas fa-eye mr-1"></i> Show</button>
                 </div>
             </div>
             <pre class="playbook-output mt-2" id="output-{{ loop.index }}" style="display:none;"></pre>

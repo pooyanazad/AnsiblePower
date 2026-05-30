@@ -1,18 +1,18 @@
 <div class="sidebar-sticky pt-3">
     <ul class="nav flex-column">
       <li class="nav-item">
-        <a class="nav-link" href="{{ url_for('main.homepage') }}">
-          Homepage
+        <a class="nav-link {% if request.path == '/' %}active font-weight-bold{% endif %}" href="{{ url_for('main.homepage') }}">
+          <i class="fas fa-home mr-2"></i> Homepage
         </a>
       </li>
       <li class="nav-item">
-        <a class="nav-link" href="{{ url_for('history.history') }}">
-          History
+        <a class="nav-link {% if '/history' in request.path %}active font-weight-bold{% endif %}" href="{{ url_for('history.history') }}">
+          <i class="fas fa-history mr-2"></i> History
         </a>
       </li>
       <li class="nav-item">
-        <a class="nav-link" href="{{ url_for('settings.settings') }}">
-          Settings
+        <a class="nav-link {% if '/settings' in request.path %}active font-weight-bold{% endif %}" href="{{ url_for('settings.settings') }}">
+          <i class="fas fa-cog mr-2"></i> Settings
         </a>
       </li>
     </ul>
