@@ -1,4 +1,1 @@
-{
-  "playbooks_dir": "playbooks",
-  "hosts_file": "data/hosts"
-}
+{\n  "playbooks_dir": "playbooks",\n  "hosts_file": "data/hosts"\n}
