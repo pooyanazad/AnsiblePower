@@ -53,11 +53,11 @@ def test_endpoints():
     assert isinstance(history_data, list), "Exported history is not a list"
     assert len(history_data) >= 1, "Exported history is empty"
     
-    # 5. Settings Page and Dark Mode Toggle
+    # 5. Settings Page and Dark Mode Toggle (toggle is in the header, present on all pages)
     res = requests.get(f"{BASE_URL}/settings/")
     assert res.status_code == 200
     soup = BeautifulSoup(res.text, 'html.parser')
-    assert soup.find('button', id='toggle-dark-mode'), "Dark Mode Toggle not found in settings"
+    assert soup.find('button', id='toggle-dark-mode'), "Dark Mode Toggle not found in header"
     
     # 6. Settings System Status
     res = requests.get(f"{BASE_URL}/settings/system_status")

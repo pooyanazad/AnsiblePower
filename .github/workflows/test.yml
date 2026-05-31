@@ -71,3 +71,44 @@ jobs:
     - name: Run smoke tests
       run: |
         python tests/smoke_test.py
+
+  live-tests:
+    runs-on: ubuntu-latest
+    name: Live App Tests (LAT)
+    needs: smoke-tests
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.9
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Start Flask app in background
+      run: |
+        python ansiblePower.py &
+        echo $! > flask.pid
+
+    - name: Wait for Flask to be ready
+      run: |
+        for i in $(seq 1 15); do
+          curl -sf http://localhost:5000/ && echo "Flask is up!" && exit 0
+          echo "Waiting... ($i)"
+          sleep 2
+        done
+        echo "Flask did not start in time" && exit 1
+
+    - name: Run live app tests
+      run: |
+        python tests/test_live_app.py
+
+    - name: Stop Flask app
+      if: always()
+      run: |
+        if [ -f flask.pid ]; then kill $(cat flask.pid) || true; fi
