@@ -4,6 +4,19 @@
 
 ---
 
+## ✅ Fixed Issues
+
+- **SEC-1**: Hardcoded Flask secret key — replaced with `os.urandom(24).hex()` dynamic generation.
+- **SEC-2**: Path traversal in `run_playbook`/`show_playbook` — hardened with `os.path.commonpath` and directory check.
+- **SEC-4**: No CSRF protection — added `Flask-WTF` CSRF tokens on all POST endpoints and forms.
+- **SEC-5**: No authentication — implemented and then reverted per user decision (not required for this app).
+- **BUG**: `ansible-playbook` not found — added `_find_ansible_playbook()` to resolve venv and system PATH.
+- **GUI**: Dark mode toggle moved from Settings page to the top navigation header.
+- **GUI**: Added FontAwesome icons to sidebar links and playbook action buttons.
+- **GUI**: Fixed invisible text in dark mode (labels, muted text, pre-formatted output).
+
+---
+
 
 
 ### SEC-3: XSS Vulnerability in History Output Display
