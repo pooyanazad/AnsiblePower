@@ -6,23 +6,6 @@
 
 
 
-### SEC-2: Path Traversal Vulnerability in `run_playbook` and `show_playbook`
-
-**File**: [ansiblePower.py](file:///home/pooyan/project/AnsiblePower/ansiblePower.py#L148-L205)
-
-```python
-playbook_name = request.form.get("playbook")
-playbook_path = os.path.join(playbooks_dir, playbook_name)
-```
-
-No sanitization of `playbook_name`. An attacker can send `playbook=../../etc/passwd` to:
-- **Read arbitrary files** via `show_playbook`
-- **Execute arbitrary playbooks** via `run_playbook` (full remote code execution)
-
-**Fix**: Validate that `os.path.realpath(playbook_path)` starts with `os.path.realpath(playbooks_dir)`.
-
----
-
 ### SEC-3: XSS Vulnerability in History Output Display
 
 **File**: [history.html](file:///home/pooyan/project/AnsiblePower/templates/history.html#L24)
@@ -354,7 +337,7 @@ The app needs these changes to work well in Docker:
 
 | Priority | Category | Count | Items |
 |----------|----------|-------|-------|
-| 🔴 Critical | Security | 1 | SEC-2 |
+| 🔴 Critical | Security | 0 | — |
 | 🟡 High | Security | 2 | SEC-3, SEC-6 |
 | 🟡 High | Code Quality | 3 | CQ-1, CQ-2, CQ-3 |
 | 🟡 High | GUI | 4 | GUI-1, GUI-2, GUI-3, GUI-9 |
