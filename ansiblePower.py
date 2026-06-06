@@ -173,11 +173,19 @@ def run_playbook():
     playbooks_dir = get_playbooks_dir()
     playbook_path = os.path.join(playbooks_dir, playbook_name)
 
-    # Path traversal protection: ensure resolved path is within playbooks_dir
+    # Path traversal protection: ensure resolved path is inside playbooks_dir
     real_playbook = os.path.realpath(playbook_path)
     real_dir = os.path.realpath(playbooks_dir)
-    if not real_playbook.startswith(real_dir + os.sep) and real_playbook != real_dir:
+    try:
+        if os.path.commonpath([real_playbook, real_dir]) != real_dir:
+            raise ValueError("outside")
+    except ValueError:
         logger.error("Path traversal attempt blocked: %s", playbook_name)
+        return jsonify({"error": "Invalid playbook path"}), 400
+
+    # Prevent directories from being passed as playbook names
+    if os.path.isdir(real_playbook):
+        logger.error("Directory passed as playbook name: %s", playbook_name)
         return jsonify({"error": "Invalid playbook path"}), 400
 
     if not os.path.exists(playbook_path):
@@ -226,11 +234,19 @@ def show_playbook():
     playbooks_dir = get_playbooks_dir()
     playbook_path = os.path.join(playbooks_dir, playbook_name)
 
-    # Path traversal protection: ensure resolved path is within playbooks_dir
+    # Path traversal protection: ensure resolved path is inside playbooks_dir
     real_playbook = os.path.realpath(playbook_path)
     real_dir = os.path.realpath(playbooks_dir)
-    if not real_playbook.startswith(real_dir + os.sep) and real_playbook != real_dir:
+    try:
+        if os.path.commonpath([real_playbook, real_dir]) != real_dir:
+            raise ValueError("outside")
+    except ValueError:
         logger.error("Path traversal attempt blocked: %s", playbook_name)
+        return jsonify({"error": "Invalid playbook path"}), 400
+
+    # Prevent directories from being passed as playbook names
+    if os.path.isdir(real_playbook):
+        logger.error("Directory passed as playbook name: %s", playbook_name)
         return jsonify({"error": "Invalid playbook path"}), 400
 
     if not os.path.exists(playbook_path):
