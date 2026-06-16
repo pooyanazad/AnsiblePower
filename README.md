@@ -69,7 +69,7 @@ Open [http://localhost:5000](http://localhost:5000) and you're ready to go.
 
 | Light Mode | Dark Mode |
 |---|---|
-| ![Light](https://github.com/user-attachments/assets/fc6861f4-d1f5-4efb-8827-00e6b91f0c3a) | *Dark mode built-in — toggle from the navbar* |
+|<img width="628" height="410" alt="image" src="https://github.com/user-attachments/assets/c4a10c44-0902-4ebf-b94b-d99dc873f1f8" />| <img width="621" height="403" alt="image" src="https://github.com/user-attachments/assets/87743392-00e3-418e-ba07-45e3f642952c" />|
 
 ---
 
