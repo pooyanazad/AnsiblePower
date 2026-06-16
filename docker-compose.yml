@@ -1,0 +1,17 @@
+services:
+  ansiblepower:
+    build: .
+    image: ansiblepower:latest
+    container_name: ansiblepower
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./playbooks:/app/playbooks
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ~/.ssh:/home/appuser/.ssh:ro
+    environment:
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-changeme-in-production}
+      - FLASK_DEBUG=${FLASK_DEBUG:-false}
+      - ANSIBLE_PLAYBOOK_BIN=${ANSIBLE_PLAYBOOK_BIN:-ansible-playbook}
+    restart: unless-stopped
