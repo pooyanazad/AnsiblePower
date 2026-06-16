@@ -140,6 +140,10 @@ main_bp = Blueprint('main', __name__)
 history_bp = Blueprint('history', __name__, url_prefix='/history')
 settings_bp = Blueprint('settings', __name__, url_prefix='/settings')
 
+@main_bp.route("/health")
+def health():
+    return jsonify({"status": "ok"})
+
 @main_bp.route("/")
 def homepage():
     dark_mode = session.get("dark_mode", False)
