@@ -34,14 +34,14 @@ If you need a simple, fast way to run playbooks from a browser — without setti
 
 ## Features
 
-- **📋 Playbook Management** — List, view, and execute `.yml`/`.yaml` playbooks from a configurable directory
-- **▶️ One-Click Execution** — Run playbooks with a single click and see output instantly
-- **📊 Execution History** — Full log of every run with timestamps, export to JSON/CSV, import from backup
-- **🖥️ System Monitoring** — CPU and memory usage of your Ansible control node
-- **📁 Hosts Editor** — View and edit your Ansible inventory file directly from the browser
-- **🌙 Dark Mode** — Toggle between light and dark themes
-- **🔒 Security** — CSRF protection, path traversal prevention, input validation
-- **⚙️ Configurable** — Set playbooks directory and hosts file path from the UI or environment variables
+- **📋 Playbook Management** - List, view, and execute `.yml`/`.yaml` playbooks from a configurable directory
+- **▶️ One-Click Execution** - Run playbooks with a single click and see output instantly
+- **📊 Execution History** - Full log of every run with timestamps, export to JSON/CSV, import from backup
+- **🖥️ System Monitoring** - CPU and memory usage of your Ansible control node
+- **📁 Hosts Editor** - View and edit your Ansible inventory file directly from the browser
+- **🌙 Dark Mode** - Toggle between light and dark themes
+- **🔒 Security** - CSRF protection, path traversal prevention, input validation
+- **⚙️ Configurable** - Set playbooks directory and hosts file path from the UI or environment variables
 
 ---
 
