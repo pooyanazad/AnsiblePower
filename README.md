@@ -14,6 +14,7 @@
   <a href="https://github.com/pooyanazad/AnsiblePower/blob/main/LICENSE"><img src="https://img.shields.io/github/license/pooyanazad/AnsiblePower" alt="License"></a>
   <img src="https://img.shields.io/badge/python-3.9%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/flask-2.3-lightgrey" alt="Flask">
+  <img src="https://img.shields.io/badge/docker-ready-2496ED?logo=docker&logoColor=white" alt="Docker">
 </p>
 
 ---
@@ -47,15 +48,37 @@ If you need a simple, fast way to run playbooks from a browser — without setti
 
 ## Quick Start
 
+### 🐳 Docker (recommended)
+
 ```bash
-# Clone
 git clone https://github.com/pooyanazad/AnsiblePower.git
 cd AnsiblePower
+cp .env.example .env        # edit .env to set your FLASK_SECRET_KEY
+docker compose up -d
+```
 
-# Install
+Open [http://localhost:5000](http://localhost:5000) — done.
+
+<details>
+<summary><strong>Volume mounts</strong></summary>
+
+| Host path | Container path | Purpose |
+|---|---|---|
+| `./playbooks/` | `/app/playbooks` | Your Ansible playbooks |
+| `./data/` | `/app/data` | Config, history, hosts file |
+| `./logs/` | `/app/logs` | Application logs |
+| `~/.ssh/` | `/home/appuser/.ssh` (read-only) | SSH keys for remote hosts |
+
+Data persists across `docker compose down && up`.
+
+</details>
+
+### 🐍 Bare metal
+
+```bash
+git clone https://github.com/pooyanazad/AnsiblePower.git
+cd AnsiblePower
 pip install -r requirements.txt
-
-# Run
 python ansiblePower.py
 ```
 
@@ -78,6 +101,10 @@ Open [http://localhost:5000](http://localhost:5000) and you're ready to go.
 ```
 AnsiblePower/
 ├── ansiblePower.py        # Main Flask application
+├── Dockerfile             # Multi-stage Docker build
+├── docker-compose.yml     # One-command deployment
+├── .env.example           # Environment variable template
+├── requirements.txt       # Python dependencies
 ├── templates/             # Jinja2 HTML templates
 │   ├── base.html          # Layout with sidebar and navbar
 │   ├── index.html         # Playbook listing and execution
