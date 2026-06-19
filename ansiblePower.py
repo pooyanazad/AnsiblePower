@@ -446,36 +446,41 @@ app.register_blueprint(history_bp)
 app.register_blueprint(settings_bp)
 
 # =============================================================================
-# Main
+# Ensure required directories and default files exist.
+# Called at module level so it runs under both `python ansiblePower.py` and
+# Gunicorn/Docker (which imports the module but never enters __main__).
+# =============================================================================
+def _ensure_dirs():
+    data_dir = os.path.join(BASE_DIR, "data")
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+    if not os.path.exists(DEFAULT_PLAYBOOKS_DIR):
+        os.makedirs(DEFAULT_PLAYBOOKS_DIR)
+        sample_playbook = os.path.join(DEFAULT_PLAYBOOKS_DIR, "sample.yml")
+        with open(sample_playbook, "w") as f:
+            f.write("---\n# Sample Ansible Playbook\n- name: Sample playbook\n  hosts: all\n  tasks:\n    - name: Print hello message\n      debug:\n        msg: \"Hello from AnsiblePower!\"\n")
+    if not os.path.exists(HISTORY_FILE):
+        save_history([])
+    if not os.path.exists(CONFIG_FILE):
+        save_config({"playbooks_dir": DEFAULT_PLAYBOOKS_DIR, "hosts_file": HOSTS_FILE})
+    hosts_file_path = get_hosts_file()
+    if not os.path.exists(hosts_file_path):
+        hosts_dir = os.path.dirname(hosts_file_path)
+        if hosts_dir and not os.path.exists(hosts_dir):
+            os.makedirs(hosts_dir)
+        with open(hosts_file_path, "w") as f:
+            f.write("# Ansible hosts file\n# Add your hosts here\n[webservers]\n# web1.example.com\n# web2.example.com\n\n[databases]\n# db1.example.com\n")
+
+_ensure_dirs()
+
+# =============================================================================
+# Main — only used for local development (Gunicorn/Docker use the module import)
 # =============================================================================
 if __name__ == "__main__":
     try:
-        data_dir = os.path.join(BASE_DIR, "data")
-        if not os.path.exists(data_dir):
-            os.makedirs(data_dir)
-        if not os.path.exists(DEFAULT_PLAYBOOKS_DIR):
-            os.makedirs(DEFAULT_PLAYBOOKS_DIR)
-            # Create a sample playbook
-            sample_playbook = os.path.join(DEFAULT_PLAYBOOKS_DIR, "sample.yml")
-            with open(sample_playbook, "w") as f:
-                f.write("---\n# Sample Ansible Playbook\n- name: Sample playbook\n  hosts: all\n  tasks:\n    - name: Print hello message\n      debug:\n        msg: \"Hello from AnsiblePower!\"\n")
-        if not os.path.exists(HISTORY_FILE):
-            save_history([])
-        if not os.path.exists(CONFIG_FILE):
-            save_config({"playbooks_dir": DEFAULT_PLAYBOOKS_DIR, "hosts_file": HOSTS_FILE})
-        
-        # Create hosts file if it doesn't exist (using configurable path)
-        hosts_file_path = get_hosts_file()
-        if not os.path.exists(hosts_file_path):
-            # Create directory if it doesn't exist
-            hosts_dir = os.path.dirname(hosts_file_path)
-            if hosts_dir and not os.path.exists(hosts_dir):
-                os.makedirs(hosts_dir)
-            with open(hosts_file_path, "w") as f:
-                f.write("# Ansible hosts file\n# Add your hosts here\n[webservers]\n# web1.example.com\n# web2.example.com\n\n[databases]\n# db1.example.com\n")
-        
         debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
         app.run(host="0.0.0.0", port=5000, debug=debug_mode)
     except Exception as e:
         logger.exception("Error starting application")
         raise
+
