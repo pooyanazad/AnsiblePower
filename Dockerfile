@@ -4,6 +4,7 @@ FROM python:3.12-slim
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         ansible \
+        curl \
         openssh-client \
         sshpass \
     && rm -rf /var/lib/apt/lists/*
@@ -29,7 +30,7 @@ USER appuser
 EXPOSE 5000
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/')" || exit 1
+    CMD curl -sf http://localhost:5000/health || exit 1
 
 # Use Gunicorn instead of Flask dev server
 # 2 workers, 120s timeout for long-running playbook executions
