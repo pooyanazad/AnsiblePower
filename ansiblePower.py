@@ -2,13 +2,14 @@
 """AnsiblePower — Lightweight web interface for managing Ansible playbooks."""
 import os
 import json
+import shutil
 import subprocess
 import psutil
 import csv
 import logging
 from datetime import datetime
 from io import StringIO
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Response
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Response, Blueprint
 from flask_wtf.csrf import CSRFProtect
 
 # =============================================================================
@@ -68,7 +69,6 @@ def _find_ansible_playbook():
     if os.path.isfile(venv_bin):
         return venv_bin
     # 3. Fall back to whatever is on PATH
-    import shutil
     system_bin = shutil.which("ansible-playbook")
     if system_bin:
         return system_bin
@@ -130,7 +130,6 @@ def save_history(history):
 # =============================================================================
 # Blueprints
 # =============================================================================
-from flask import Blueprint
 
 main_bp = Blueprint('main', __name__)
 history_bp = Blueprint('history', __name__, url_prefix='/history')
