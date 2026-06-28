@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-# AnsiblePower - Lightweight Ansible Web Interface
-# Main application file with Flask blueprints for playbook management.
+"""AnsiblePower — Lightweight web interface for managing Ansible playbooks."""
 import os
 import json
 import subprocess
