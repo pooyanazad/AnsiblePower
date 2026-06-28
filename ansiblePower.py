@@ -41,20 +41,17 @@ class CustomRotatingLogHandler(logging.Handler):
         except Exception:
             self.handleError(record)
 
-# Note: BASE_DIR is defined below after this block; log handler uses
-# os.path.abspath(__file__) directly so it works regardless of CWD.
-_BASE = os.path.dirname(os.path.abspath(__file__))
+# =============================================================================
+# Configuration Variables
+# =============================================================================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 logger = logging.getLogger("ansiblePower")
 logger.setLevel(logging.INFO)
-log_handler = CustomRotatingLogHandler(os.path.join(_BASE, "logs/app.log"), max_lines=200)
+log_handler = CustomRotatingLogHandler(os.path.join(BASE_DIR, "logs/app.log"), max_lines=200)
 formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
 log_handler.setFormatter(formatter)
 logger.addHandler(log_handler)
-
-# =============================================================================
-# Configuration Variables and Helper Functions
-# =============================================================================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "data/config.json")
 DEFAULT_PLAYBOOKS_DIR = os.path.join(BASE_DIR, "playbooks")
 HOSTS_FILE = os.path.join(BASE_DIR, "data/hosts")
