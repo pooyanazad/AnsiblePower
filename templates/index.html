@@ -51,9 +51,13 @@
         });
     </script>
     {% else %}
-    <div class="list-group">
+    <div class="mb-3">
+        <input type="text" id="playbook-search" class="form-control"
+               placeholder="🔍 Filter playbooks..." autocomplete="off">
+    </div>
+    <div class="list-group" id="playbook-list">
         {% for playbook in playbooks %}
-        <div class="list-group-item">
+        <div class="list-group-item playbook-item">
             <div class="d-flex w-100 justify-content-between">
                 <h5 class="mb-1">{{ playbook }}</h5>
                 <div>
@@ -64,7 +68,24 @@
             <pre class="playbook-output mt-2" id="output-{{ loop.index }}" style="display:none;"></pre>
         </div>
         {% endfor %}
+        <div id="no-playbook-match" class="list-group-item text-muted" style="display:none;">
+            No playbooks match your search.
+        </div>
     </div>
+    <script>
+        document.getElementById('playbook-search').addEventListener('input', function() {
+            const query = this.value.toLowerCase();
+            const items = document.querySelectorAll('#playbook-list .playbook-item');
+            let anyVisible = false;
+            items.forEach(function(item) {
+                const name = item.querySelector('h5').textContent.toLowerCase();
+                const show = name.includes(query);
+                item.style.display = show ? '' : 'none';
+                if (show) anyVisible = true;
+            });
+            document.getElementById('no-playbook-match').style.display = anyVisible ? 'none' : '';
+        });
+    </script>
     {% endif %}
 </div>
 {% endblock %}
