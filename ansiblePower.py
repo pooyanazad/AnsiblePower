@@ -214,6 +214,9 @@ def run_playbook():
     except subprocess.CalledProcessError as e:
         # Even if the play fails (e.g. unreachable host), record the output.
         output = e.output.decode("utf-8")
+    except subprocess.TimeoutExpired:
+        logger.warning("Playbook %s timed out after 300 seconds", playbook_name)
+        output = "⏱ Playbook timed out after 5 minutes (300 s). The process was killed.\nCheck your inventory and connection settings, or increase the timeout."
     except Exception as e:
         logger.exception("Unexpected error running playbook %s", playbook_name)
         output = "Unexpected error occurred: " + str(e)
