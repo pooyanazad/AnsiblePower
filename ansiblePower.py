@@ -209,7 +209,7 @@ def run_playbook():
         # No hosts file — fall back to localhost for convenience
         cmd += ["-i", "localhost,", "--connection=local"]
     try:
-        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=300)
         output = output.decode("utf-8")
     except subprocess.CalledProcessError as e:
         # Even if the play fails (e.g. unreachable host), record the output.
