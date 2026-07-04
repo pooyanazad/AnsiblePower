@@ -443,6 +443,18 @@ app.register_blueprint(main_bp)
 app.register_blueprint(history_bp)
 app.register_blueprint(settings_bp)
 
+@app.errorhandler(404)
+def not_found_error(error):
+    """Render a user-friendly 404 error page."""
+    return render_template("errors/404.html"), 404
+
+
+@app.errorhandler(500)
+def internal_server_error(error):
+    """Render a user-friendly 500 error page."""
+    logger.exception("Unhandled server error: %s", error)
+    return render_template("errors/500.html"), 500
+
 # =============================================================================
 # Ensure required directories and default files exist.
 # Called at module level so it runs under both `python ansiblePower.py` and
