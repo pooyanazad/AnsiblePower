@@ -2,6 +2,7 @@
 """AnsiblePower — Lightweight web interface for managing Ansible playbooks."""
 import os
 import json
+import sqlite3
 import shutil
 import subprocess
 import psutil
@@ -105,22 +106,124 @@ def get_hosts_file():
     config = load_config()
     return config.get("hosts_file", HOSTS_FILE)
 
+def get_history_db_file():
+    """Return the SQLite database path for playbook history."""
+    return os.path.splitext(HISTORY_FILE)[0] + ".db"
+
+
+def get_history_db_connection():
+    """Create a SQLite connection for history storage."""
+    history_db_file = get_history_db_file()
+    history_dir = os.path.dirname(history_db_file)
+
+    if history_dir and not os.path.exists(history_dir):
+        os.makedirs(history_dir)
+
+    conn = sqlite3.connect(history_db_file)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _history_records_to_rows(history):
+    """Convert history dictionaries to SQLite insert rows."""
+    return [
+        (
+            record.get("action", ""),
+            record.get("playbook", ""),
+            record.get("output", ""),
+            record.get("time", "")
+        )
+        for record in history
+        if isinstance(record, dict)
+    ]
+
+
+def init_history_db():
+    """Initialize SQLite history storage and migrate existing JSON history."""
+    try:
+        with get_history_db_connection() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS playbook_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    action TEXT NOT NULL,
+                    playbook TEXT NOT NULL,
+                    output TEXT NOT NULL,
+                    time TEXT NOT NULL
+                )
+            """)
+
+            row_count = conn.execute(
+                "SELECT COUNT(*) FROM playbook_runs"
+            ).fetchone()[0]
+
+            if row_count == 0 and os.path.exists(HISTORY_FILE):
+                try:
+                    with open(HISTORY_FILE, "r") as f:
+                        history = json.load(f)
+
+                    if isinstance(history, list):
+                        conn.executemany("""
+                            INSERT INTO playbook_runs
+                            (action, playbook, output, time)
+                            VALUES (?, ?, ?, ?)
+                        """, _history_records_to_rows(history))
+                        logger.info("Migrated existing history.json records to SQLite")
+                except Exception as e:
+                    logger.error("Error migrating history.json to SQLite: %s", e)
+    except Exception as e:
+        logger.error("Error initializing history database: %s", e)
+
+
 def load_history():
-    if os.path.exists(HISTORY_FILE):
-        with open(HISTORY_FILE, "r") as f:
-            try:
-                return json.load(f)
-            except Exception as e:
-                logger.error("Error loading history: %s", e)
-                return []
-    return []
+    """Load playbook run history from SQLite as a list of dictionaries."""
+    try:
+        init_history_db()
+
+        with get_history_db_connection() as conn:
+            rows = conn.execute("""
+                SELECT action, playbook, output, time
+                FROM playbook_runs
+                ORDER BY id ASC
+            """).fetchall()
+
+        return [dict(row) for row in rows]
+    except Exception as e:
+        logger.error("Error loading history from SQLite: %s", e)
+        return []
+
 
 def save_history(history):
+    """Replace playbook run history in SQLite with the provided records."""
     try:
-        with open(HISTORY_FILE, "w") as f:
-            json.dump(history, f, indent=2)
+        init_history_db()
+
+        with get_history_db_connection() as conn:
+            conn.execute("DELETE FROM playbook_runs")
+            conn.executemany("""
+                INSERT INTO playbook_runs (action, playbook, output, time)
+                VALUES (?, ?, ?, ?)
+            """, _history_records_to_rows(history))
     except Exception as e:
-        logger.error("Error saving history: %s", e)
+        logger.error("Error saving history to SQLite: %s", e)
+
+
+def add_history_record(record):
+    """Insert a single playbook run history record into SQLite."""
+    try:
+        init_history_db()
+
+        with get_history_db_connection() as conn:
+            conn.execute("""
+                INSERT INTO playbook_runs (action, playbook, output, time)
+                VALUES (?, ?, ?, ?)
+            """, (
+                record.get("action", ""),
+                record.get("playbook", ""),
+                record.get("output", ""),
+                record.get("time", "")
+            ))
+    except Exception as e:
+        logger.error("Error adding history record to SQLite: %s", e)
 
 # =============================================================================
 # Flask App Setup
@@ -218,14 +321,12 @@ def run_playbook():
     if not output.strip():
         output = "No output produced."
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    history = load_history()
-    history.append({
+    add_history_record({
         "action": "run",
         "playbook": playbook_name,
         "output": output,
         "time": timestamp
     })
-    save_history(history)
     logger.info("Recorded playbook run: %s", playbook_name)
     return jsonify({"output": output})
 
@@ -469,8 +570,7 @@ def _ensure_dirs():
         sample_playbook = os.path.join(DEFAULT_PLAYBOOKS_DIR, "sample.yml")
         with open(sample_playbook, "w") as f:
             f.write("---\n# Sample Ansible Playbook\n- name: Sample playbook\n  hosts: all\n  tasks:\n    - name: Print hello message\n      debug:\n        msg: \"Hello from AnsiblePower!\"\n")
-    if not os.path.exists(HISTORY_FILE):
-        save_history([])
+    init_history_db()
     if not os.path.exists(CONFIG_FILE):
         save_config({"playbooks_dir": DEFAULT_PLAYBOOKS_DIR, "hosts_file": HOSTS_FILE})
     hosts_file_path = get_hosts_file()
