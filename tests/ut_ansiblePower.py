@@ -63,6 +63,7 @@ class TestConfigAndHistory(unittest.TestCase):
         config_data = {"playbooks_dir": "/path/to/playbooks"}
         with open(self.test_config_file, "w") as f:
             json.dump(config_data, f)
+
         self.assertEqual(load_config(), config_data)
 
     def test_load_config_file_not_found(self):
@@ -71,23 +72,29 @@ class TestConfigAndHistory(unittest.TestCase):
     def test_load_config_invalid_json(self):
         with open(self.test_config_file, "w") as f:
             f.write("invalid json")
+
         self.assertEqual(load_config(), {"playbooks_dir": self.default_playbooks_dir})
 
     # Test save_config
     def test_save_config_success(self):
         config_data = {"playbooks_dir": "/new/path"}
         save_config(config_data)
+
         self.assertTrue(os.path.exists(self.test_config_file))
+
         with open(self.test_config_file, "r") as f:
             loaded_config = json.load(f)
+
         self.assertEqual(loaded_config, config_data)
 
     @patch("ansiblePower.open", new_callable=mock_open)
     def test_save_config_write_error(self, mock_file):
         mock_file.side_effect = IOError("Permission denied")
         config_data = {"playbooks_dir": "/new/path"}
+
         with self.assertLogs("ansiblePower", level="ERROR") as cm:
             save_config(config_data)
+
         self.assertIn("Error saving config:", cm.output[0])
 
     # Test SQLite history helpers
@@ -135,7 +142,6 @@ class TestConfigAndHistory(unittest.TestCase):
     @patch("ansiblePower.sqlite3.connect")
     def test_save_history_write_error(self, mock_connect):
         mock_connect.side_effect = OSError("Disk full")
-
         history_data = [{"action": "save", "playbook": "fail.yml"}]
 
         with self.assertLogs("ansiblePower", level="ERROR") as cm:
@@ -147,70 +153,4 @@ class TestConfigAndHistory(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()    with open(self.test_history_file, "w") as f:
-        f.write("invalid json history")
-
-    self.assertEqual(load_history(), [])
-
-
-def test_save_history_success(self):
-    history_data = [
-        {
-            "action": "show",
-            "playbook": "other.yml",
-            "time": "later",
-            "output": "content",
-        }
-    ]
-
-    save_history(history_data)
-
-    self.assertTrue(os.path.exists(self.test_history_db_file))
-    self.assertEqual(load_history(), history_data)
-
-
-@patch("ansiblePower.sqlite3.connect")
-def test_save_history_write_error(self, mock_connect):
-    mock_connect.side_effect = OSError("Disk full")
-
-    history_data = [{"action": "save", "playbook": "fail.yml"}]
-
-    with self.assertLogs("ansiblePower", level="ERROR") as cm:
-        save_history(history_data)
-
-    self.assertIn("Error saving history to SQLite:", cm.output[0])
-
-    # Test load_history
-    def test_load_history_existing_valid(self):
-        history_data = [{"action": "run", "playbook": "test.yml", "time": "now", "output": "success"}]
-        with open(self.test_history_file, "w") as f:
-            json.dump(history_data, f)
-        self.assertEqual(load_history(), history_data)
-
-    def test_load_history_file_not_found(self):
-        self.assertEqual(load_history(), [])
-
-    def test_load_history_invalid_json(self):
-        with open(self.test_history_file, "w") as f:
-            f.write("invalid json history")
-        self.assertEqual(load_history(), [])
-
-    # Test save_history
-    def test_save_history_success(self):
-        history_data = [{"action": "show", "playbook": "other.yml", "time": "later", "output": "content"}]
-        save_history(history_data)
-        self.assertTrue(os.path.exists(self.test_history_file))
-        with open(self.test_history_file, "r") as f:
-            loaded_history = json.load(f)
-        self.assertEqual(loaded_history, history_data)
-
-    @patch('ansiblePower.open', new_callable=mock_open)
-    def test_save_history_write_error(self, mock_file):
-        mock_file.side_effect = IOError("Disk full")
-        history_data = [{"action": "save", "playbook": "fail.yml"}]
-        with self.assertLogs('ansiblePower', level='ERROR') as cm:
-            save_history(history_data)
-        self.assertIn("Error saving history:", cm.output[0])
-
-if __name__ == '__main__':
     unittest.main()
