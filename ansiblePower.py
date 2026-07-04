@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """AnsiblePower — Lightweight web interface for managing Ansible playbooks."""
 import os
+import re
 import json
 import shutil
 import subprocess
@@ -57,6 +58,12 @@ CONFIG_FILE = os.path.join(BASE_DIR, "data/config.json")
 DEFAULT_PLAYBOOKS_DIR = os.path.join(BASE_DIR, "playbooks")
 HOSTS_FILE = os.path.join(BASE_DIR, "data/hosts")
 HISTORY_FILE = os.path.join(BASE_DIR, "data/history.json")
+PLAYBOOK_FILENAME_PATTERN = re.compile(r"^[a-zA-Z0-9_.-]+\.(yml|yaml)$")
+
+
+def is_valid_playbook_filename(filename):
+    """Return True if the playbook filename uses the allowed safe pattern."""
+    return bool(filename and PLAYBOOK_FILENAME_PATTERN.fullmatch(filename))
 
 # Resolve ansible-playbook: prefer the venv binary, then system PATH, then env override
 def _find_ansible_playbook():
@@ -171,6 +178,9 @@ def run_playbook():
     if not playbook_name:
         logger.error("No playbook specified in run_playbook")
         return jsonify({"error": "No playbook specified"}), 400
+    if not is_valid_playbook_filename(playbook_name):
+        logger.error("Invalid playbook filename in run_playbook: %s", playbook_name)
+        return jsonify({"error": "Invalid playbook filename"}), 400
 
     playbooks_dir = get_playbooks_dir()
     playbook_path = os.path.join(playbooks_dir, playbook_name)
@@ -235,6 +245,9 @@ def show_playbook():
     if not playbook_name:
         logger.error("No playbook specified in show_playbook")
         return jsonify({"error": "No playbook specified"}), 400
+    if not is_valid_playbook_filename(playbook_name):
+        logger.error("Invalid playbook filename in show_playbook: %s", playbook_name)
+        return jsonify({"error": "Invalid playbook filename"}), 400
 
     playbooks_dir = get_playbooks_dir()
     playbook_path = os.path.join(playbooks_dir, playbook_name)
