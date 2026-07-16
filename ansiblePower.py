@@ -387,7 +387,19 @@ def update_playbooks_dir():
     new_dir = request.form.get("playbooks_dir", "").strip()
     if not new_dir:
         return jsonify({"error": "Directory path cannot be empty"}), 400
-    
+
+    # Security: restrict playbooks directory to paths inside BASE_DIR only.
+    # Allowing arbitrary paths (e.g. "/") would bypass the commonpath check in
+    # show_playbook and run_playbook, enabling arbitrary file read/execution.
+    real_new_dir = os.path.realpath(new_dir)
+    real_base = os.path.realpath(BASE_DIR)
+    try:
+        if os.path.commonpath([real_new_dir, real_base]) != real_base:
+            raise ValueError("outside BASE_DIR")
+    except ValueError:
+        logger.warning("Rejected unsafe playbooks_dir path: %s", new_dir)
+        return jsonify({"error": "Playbooks directory must be inside the application directory"}), 400
+
     config = load_config()
     config["playbooks_dir"] = new_dir
     save_config(config)

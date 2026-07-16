@@ -152,5 +152,56 @@ class TestConfigAndHistory(unittest.TestCase):
         )
 
 
+class TestUpdatePlaybooksDirSecurity(unittest.TestCase):
+    """Tests for the path traversal fix in update_playbooks_dir (issue 15.1)."""
+
+    def setUp(self):
+        import ansiblePower
+        self.app = ansiblePower.app
+        self.app.config["TESTING"] = True
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.client = self.app.test_client()
+
+    def _post(self, path):
+        return self.client.post(
+            "/settings/update_playbooks_dir",
+            data={"playbooks_dir": path},
+        )
+
+    def test_root_path_rejected(self):
+        """Setting playbooks_dir to '/' must be rejected (would bypass commonpath guard)."""
+        resp = self._post("/")
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn("error", data)
+
+    def test_etc_path_rejected(self):
+        """/etc is outside BASE_DIR and must be rejected."""
+        resp = self._post("/etc")
+        self.assertEqual(resp.status_code, 400)
+
+    def test_parent_traversal_rejected(self):
+        """A path that escapes BASE_DIR via '..' must be rejected."""
+        import ansiblePower
+        outside = os.path.dirname(ansiblePower.BASE_DIR)
+        resp = self._post(outside)
+        self.assertEqual(resp.status_code, 400)
+
+    def test_valid_subdir_accepted(self):
+        """A path strictly inside BASE_DIR must be accepted."""
+        import ansiblePower
+        safe_path = os.path.join(ansiblePower.BASE_DIR, "playbooks")
+        resp = self._post(safe_path)
+        # 200 with status ok
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data.get("status"), "ok")
+
+    def test_empty_path_rejected(self):
+        """An empty path must be rejected."""
+        resp = self._post("")
+        self.assertEqual(resp.status_code, 400)
+
+
 if __name__ == "__main__":
     unittest.main()
