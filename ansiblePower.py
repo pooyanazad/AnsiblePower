@@ -411,6 +411,17 @@ def update_hosts_file():
     new_hosts_file = request.form.get("hosts_file", "").strip()
     if not new_hosts_file:
         return jsonify({"error": "Hosts file path cannot be empty"}), 400
+
+    # Security: restrict hosts file to paths inside BASE_DIR/data only.
+    # Allowing arbitrary absolute paths enables arbitrary file read/write (e.g. ~/.ssh/id_rsa)
+    real_new_hosts = os.path.realpath(new_hosts_file)
+    safe_data_dir = os.path.realpath(os.path.join(BASE_DIR, "data"))
+    try:
+        if os.path.commonpath([real_new_hosts, safe_data_dir]) != safe_data_dir:
+            raise ValueError("outside safe dir")
+    except ValueError:
+        logger.warning("Rejected unsafe hosts_file path: %s", new_hosts_file)
+        return jsonify({"error": "Hosts file must be inside the application data directory"}), 400
     
     config = load_config()
     config["hosts_file"] = new_hosts_file
