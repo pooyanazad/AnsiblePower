@@ -1,3 +1,27 @@
+window.showToast = function(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `custom-toast ${type}`;
+    toast.textContent = message;
+
+    container.appendChild(toast);
+
+    // Trigger reflow
+    void toast.offsetWidth;
+    toast.classList.add('show');
+
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => {
+            if (toast.parentNode === container) {
+                container.removeChild(toast);
+            }
+        }, 300);
+    }, 3000);
+};
+
 document.addEventListener("DOMContentLoaded", function(){
     const csrfMeta = document.querySelector('meta[name="csrf-token"]');
     const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';

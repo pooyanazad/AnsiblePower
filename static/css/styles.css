@@ -281,3 +281,36 @@ h1, h2, h3, h4, h5, h6 {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
 }
+
+/* Toast Notifications */
+.custom-toast {
+    min-width: 250px;
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 10px;
+    font-size: 15px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.custom-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.custom-toast.success {
+    background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
+}
+
+.custom-toast.error {
+    background: linear-gradient(135deg, #dc3545 0%, #bd2130 100%);
+}
+
+.custom-toast.info {
+    background: linear-gradient(135deg, #17a2b8 0%, #117a8b 100%);
+}
