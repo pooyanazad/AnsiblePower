@@ -199,4 +199,62 @@ document.addEventListener("DOMContentLoaded", function(){
             });
         });
     }
+
+    // Settings: Playbooks directory form
+    const playbooksDirForm = document.getElementById("playbooks-dir-form");
+    if(playbooksDirForm) {
+        playbooksDirForm.addEventListener("submit", function(e) {
+            e.preventDefault();
+            const playbooksDir = document.getElementById("playbooks_dir").value;
+
+            fetch("/settings/update_playbooks_dir", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "X-CSRFToken": csrfToken
+                },
+                body: "playbooks_dir=" + encodeURIComponent(playbooksDir)
+            })
+            .then(r => r.json())
+            .then(data => {
+                if(data.status === "ok") {
+                    showToast(data.message, "success");
+                } else {
+                    showToast(data.error, "error");
+                }
+            })
+            .catch(err => {
+                showToast("An error occurred while updating the playbooks directory.", "error");
+            });
+        });
+    }
+
+    // Settings: Hosts file path form
+    const hostsFileForm = document.getElementById("hosts-file-form");
+    if(hostsFileForm) {
+        hostsFileForm.addEventListener("submit", function(e) {
+            e.preventDefault();
+            const hostsFile = document.getElementById("hosts_file").value;
+
+            fetch("/settings/update_hosts_file", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "X-CSRFToken": csrfToken
+                },
+                body: "hosts_file=" + encodeURIComponent(hostsFile)
+            })
+            .then(r => r.json())
+            .then(data => {
+                if(data.status === "ok") {
+                    showToast(data.message, "success");
+                } else {
+                    showToast(data.error, "error");
+                }
+            })
+            .catch(err => {
+                showToast("An error occurred while updating the hosts file path.", "error");
+            });
+        });
+    }
 });
