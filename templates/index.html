@@ -41,12 +41,12 @@
                 if (data.status === 'ok') {
                     window.location.reload();
                 } else {
-                    alert('Error: ' + data.error);
+                    showToast('Error: ' + data.error, 'error');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('An error occurred while updating the playbooks directory.');
+                showToast('An error occurred while updating the playbooks directory.', 'error');
             });
         });
     </script>
