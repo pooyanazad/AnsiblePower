@@ -23,33 +23,7 @@
         </form>
     </div>
     
-    <script>
-        document.getElementById('playbooks-dir-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const playbooksDir = document.getElementById('playbooks_dir').value;
-            
-            fetch('/settings/update_playbooks_dir', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                },
-                body: 'playbooks_dir=' + encodeURIComponent(playbooksDir)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'ok') {
-                    window.location.reload();
-                } else {
-                    showToast('Error: ' + data.error, 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showToast('An error occurred while updating the playbooks directory.', 'error');
-            });
-        });
-    </script>
+
     {% else %}
     <div class="mb-3">
         <input type="text" id="playbook-search" class="form-control"
@@ -72,20 +46,7 @@
             No playbooks match your search.
         </div>
     </div>
-    <script>
-        document.getElementById('playbook-search').addEventListener('input', function() {
-            const query = this.value.toLowerCase();
-            const items = document.querySelectorAll('#playbook-list .playbook-item');
-            let anyVisible = false;
-            items.forEach(function(item) {
-                const name = item.querySelector('h5').textContent.toLowerCase();
-                const show = name.includes(query);
-                item.style.display = show ? '' : 'none';
-                if (show) anyVisible = true;
-            });
-            document.getElementById('no-playbook-match').style.display = anyVisible ? 'none' : '';
-        });
-    </script>
+
     {% endif %}
 </div>
 {% endblock %}

@@ -200,7 +200,7 @@ document.addEventListener("DOMContentLoaded", function(){
         });
     }
 
-    // Settings: Playbooks directory form
+    // Playbooks directory form — used on index page (prompt_for_dir) AND settings page
     const playbooksDirForm = document.getElementById("playbooks-dir-form");
     if(playbooksDirForm) {
         playbooksDirForm.addEventListener("submit", function(e) {
@@ -218,14 +218,37 @@ document.addEventListener("DOMContentLoaded", function(){
             .then(r => r.json())
             .then(data => {
                 if(data.status === "ok") {
-                    showToast(data.message, "success");
+                    // On the index page, reload so the playbook list appears
+                    if(window.location.pathname === "/" || window.location.pathname === "") {
+                        window.location.reload();
+                    } else {
+                        showToast(data.message, "success");
+                    }
                 } else {
-                    showToast(data.error, "error");
+                    showToast(data.error || "Error updating directory.", "error");
                 }
             })
             .catch(err => {
                 showToast("An error occurred while updating the playbooks directory.", "error");
             });
+        });
+    }
+
+    // Playbook search filter (index page)
+    const playbookSearch = document.getElementById("playbook-search");
+    if(playbookSearch) {
+        playbookSearch.addEventListener("input", function() {
+            const query = this.value.toLowerCase();
+            const items = document.querySelectorAll("#playbook-list .playbook-item");
+            let anyVisible = false;
+            items.forEach(function(item) {
+                const name = item.querySelector("h5").textContent.toLowerCase();
+                const show = name.includes(query);
+                item.style.display = show ? "" : "none";
+                if(show) anyVisible = true;
+            });
+            const noMatch = document.getElementById("no-playbook-match");
+            if(noMatch) noMatch.style.display = anyVisible ? "none" : "";
         });
     }
 
