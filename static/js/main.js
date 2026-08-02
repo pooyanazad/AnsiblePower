@@ -40,8 +40,19 @@ document.addEventListener("DOMContentLoaded", function(){
             const playbook = btn.getAttribute("data-playbook");
             const index = btn.getAttribute("data-index");
             const outputEl = document.getElementById("output-" + index);
+
+            // Show spinner in output area
             outputEl.style.display = "block";
-            outputEl.textContent = "Running, Please wait...";
+            outputEl.innerHTML =
+                '<span class="output-spinner-wrapper">' +
+                  '<span class="output-spinner"></span>' +
+                  'Running <strong>' + playbook + '</strong>&hellip; please wait' +
+                '</span>';
+
+            // Disable button and show spinner inside it
+            const originalHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="run-spinner"></span>Running&hellip;';
 
             fetch("/run_playbook", {
                 method: "POST",
@@ -55,13 +66,18 @@ document.addEventListener("DOMContentLoaded", function(){
             .then(data => {
                 setTimeout(() => {
                     outputEl.textContent = data.output || data.error;
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
                 }, 1000);
             })
             .catch(err => {
                 outputEl.textContent = "Error: Could not connect to server. " + err.message;
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
             });
         });
     });
+
 
     // Show playbook content
     document.querySelectorAll(".show-btn").forEach(btn => {

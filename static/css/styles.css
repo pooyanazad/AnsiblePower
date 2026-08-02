@@ -314,3 +314,51 @@ h1, h2, h3, h4, h5, h6 {
 .custom-toast.info {
     background: linear-gradient(135deg, #17a2b8 0%, #117a8b 100%);
 }
+
+/* Playbook run spinner */
+@keyframes ap-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+.run-spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 3px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: ap-spin 0.75s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+
+/* Spinner shown inside the output pre block */
+.playbook-output .output-spinner-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 14px;
+    color: #495057;
+}
+
+.dark .playbook-output .output-spinner-wrapper {
+    color: #cbd5e0;
+}
+
+.output-spinner-wrapper .output-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(0, 123, 255, 0.25);
+    border-top-color: #007bff;
+    border-radius: 50%;
+    animation: ap-spin 0.75s linear infinite;
+    flex-shrink: 0;
+}
+
+.dark .output-spinner-wrapper .output-spinner {
+    border-color: rgba(99, 179, 237, 0.25);
+    border-top-color: #63b3ed;
+}
