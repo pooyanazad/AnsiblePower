@@ -203,5 +203,50 @@ class TestUpdatePlaybooksDirSecurity(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
 
 
+class TestSecurityHeaders(unittest.TestCase):
+    """Task 21 — verify security headers are present on every response."""
+
+    def setUp(self):
+        import ansiblePower
+        self.app = ansiblePower.app
+        self.app.config["TESTING"] = True
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.client = self.app.test_client()
+
+    def _assert_security_headers(self, response):
+        self.assertEqual(response.headers.get("X-Frame-Options"), "DENY")
+        self.assertEqual(response.headers.get("X-Content-Type-Options"), "nosniff")
+        self.assertEqual(
+            response.headers.get("Referrer-Policy"),
+            "strict-origin-when-cross-origin",
+        )
+
+    def test_security_headers_on_homepage(self):
+        """Security headers must be set on GET /."""
+        resp = self.client.get("/")
+        self._assert_security_headers(resp)
+
+    def test_security_headers_on_health(self):
+        """Security headers must be set on GET /health."""
+        resp = self.client.get("/health")
+        self._assert_security_headers(resp)
+
+    def test_security_headers_on_history(self):
+        """Security headers must be set on GET /history/."""
+        resp = self.client.get("/history/")
+        self._assert_security_headers(resp)
+
+    def test_security_headers_on_settings(self):
+        """Security headers must be set on GET /settings/."""
+        resp = self.client.get("/settings/")
+        self._assert_security_headers(resp)
+
+    def test_security_headers_on_404(self):
+        """Security headers must also be present on 404 error responses."""
+        resp = self.client.get("/nonexistent-route-xyz")
+        self._assert_security_headers(resp)
+
+
 if __name__ == "__main__":
     unittest.main()
+

@@ -567,6 +567,17 @@ app.register_blueprint(main_bp)
 app.register_blueprint(history_bp)
 app.register_blueprint(settings_bp)
 
+# =============================================================================
+# Security Headers — applied to every response (task 21)
+# =============================================================================
+@app.after_request
+def set_security_headers(response):
+    """Attach security-related HTTP headers to every outgoing response."""
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
 @app.errorhandler(404)
 def not_found_error(error):
     """Render a user-friendly 404 error page."""
