@@ -41,6 +41,11 @@ document.addEventListener("DOMContentLoaded", function(){
             const index = btn.getAttribute("data-index");
             const outputEl = document.getElementById("output-" + index);
 
+            // Task 22: confirm before running to prevent accidental execution
+            if (!confirm("Run '" + playbook + "'?")) {
+                return;
+            }
+
             // Show spinner in output area
             outputEl.style.display = "block";
             outputEl.innerHTML =
@@ -187,6 +192,10 @@ document.addEventListener("DOMContentLoaded", function(){
     const clearHistoryBtn = document.getElementById("clear-history-btn");
     if(clearHistoryBtn) {
         clearHistoryBtn.addEventListener("click", function(){
+            // Task 23: confirm before clearing — destructive action
+            if (!confirm("Delete all history? This cannot be undone.")) {
+                return;
+            }
             fetch("/settings/clear_history", {
                 method: "POST",
                 headers: {"X-CSRFToken": csrfToken}
