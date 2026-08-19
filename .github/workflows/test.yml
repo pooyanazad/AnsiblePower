@@ -26,7 +26,7 @@ jobs:
     
     - name: Run unit tests
       run: |
-        python tests/ut_ansiblePower.py
+        pytest tests/test_unit.py -v
 
   quality-tests:
     runs-on: ubuntu-latest
@@ -48,7 +48,7 @@ jobs:
     
     - name: Run quality tests
       run: |
-        python tests/qt_ansiblePower.py
+        pytest tests/test_quality.py -v
 
   smoke-tests:
     runs-on: ubuntu-latest
@@ -70,7 +70,7 @@ jobs:
     
     - name: Run smoke tests
       run: |
-        python tests/smoke_test.py
+        pytest tests/test_smoke.py -v
 
   live-tests:
     runs-on: ubuntu-latest
@@ -106,7 +106,7 @@ jobs:
 
     - name: Run live app tests
       run: |
-        python tests/test_live_app.py
+        pytest tests/test_live_app.py -v
 
     - name: Stop Flask app
       if: always()
