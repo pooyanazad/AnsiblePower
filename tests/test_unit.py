@@ -378,6 +378,64 @@ class TestRunPlaybookFailure(unittest.TestCase):
         self.assertIn("UNREACHABLE", history[-1]["output"])
 
 
+class TestRunPlaybookTimeout(unittest.TestCase):
+    """Test 29 — run_playbook TimeoutExpired: friendly error message returned."""
+
+    def setUp(self):
+        import ansiblePower
+        self.app = ansiblePower.app
+        self.app.config["TESTING"] = True
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.client = self.app.test_client()
+
+        import tempfile
+        self._tmp = tempfile.mkdtemp(prefix="ap_test29_")
+        self._playbooks_dir = os.path.join(self._tmp, "playbooks")
+        os.makedirs(self._playbooks_dir)
+
+        self._playbook_name = "slow.yml"
+        with open(os.path.join(self._playbooks_dir, self._playbook_name), "w") as fh:
+            fh.write("---\n- hosts: all\n  tasks: []\n")
+
+        self._config_file  = os.path.join(self._tmp, "config.json")
+        self._history_file = os.path.join(self._tmp, "history.json")
+
+        import json as _json
+        with open(self._config_file, "w") as fh:
+            _json.dump({
+                "playbooks_dir": self._playbooks_dir,
+                "hosts_file": os.path.join(self._tmp, "hosts"),
+            }, fh)
+
+        self._config_patcher  = patch("ansiblePower.CONFIG_FILE",  self._config_file)
+        self._history_patcher = patch("ansiblePower.HISTORY_FILE", self._history_file)
+        self._config_patcher.start()
+        self._history_patcher.start()
+
+    def tearDown(self):
+        self._config_patcher.stop()
+        self._history_patcher.stop()
+        import shutil
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def test_run_playbook_timeout(self):
+        """TimeoutExpired: response must include a friendly timeout message."""
+        import subprocess
+        exc = subprocess.TimeoutExpired(cmd=["ansible-playbook"], timeout=300)
+
+        with patch("ansiblePower.subprocess.check_output", side_effect=exc):
+            resp = self.client.post(
+                "/run_playbook",
+                data={"playbook": self._playbook_name},
+            )
+
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn("output", data)
+        # The message must mention timeout (case-insensitive)
+        self.assertIn("timed out", data["output"].lower())
+
+
 if __name__ == "__main__":
     unittest.main()
 
