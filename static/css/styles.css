@@ -362,3 +362,58 @@ h1, h2, h3, h4, h5, h6 {
     border-color: rgba(99, 179, 237, 0.25);
     border-top-color: #63b3ed;
 }
+
+/* Copy-to-clipboard button (#32) */
+.output-wrapper {
+    position: relative;
+}
+
+.copy-output-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 14px;
+    line-height: 1.4;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease;
+    z-index: 2;
+    color: #495057;
+    backdrop-filter: blur(4px);
+}
+
+.copy-output-btn:hover {
+    background: rgba(0, 123, 255, 0.1);
+    border-color: #007bff;
+    color: #007bff;
+    transform: scale(1.05);
+}
+
+.copy-output-btn.copied {
+    background: rgba(40, 167, 69, 0.15);
+    border-color: #28a745;
+    color: #28a745;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.dark .copy-output-btn {
+    background: rgba(45, 55, 72, 0.85);
+    border-color: #4a5568;
+    color: #cbd5e0;
+}
+
+.dark .copy-output-btn:hover {
+    background: rgba(99, 179, 237, 0.15);
+    border-color: #63b3ed;
+    color: #63b3ed;
+}
+
+.dark .copy-output-btn.copied {
+    background: rgba(72, 187, 120, 0.15);
+    border-color: #48bb78;
+    color: #48bb78;
+}

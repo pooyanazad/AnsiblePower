@@ -39,7 +39,8 @@ document.addEventListener("DOMContentLoaded", function(){
         btn.addEventListener("click", function(){
             const playbook = btn.getAttribute("data-playbook");
             const index = btn.getAttribute("data-index");
-            const outputEl = document.getElementById("output-" + index);
+            const wrapperEl = document.getElementById("wrapper-" + index);
+            const outputEl  = document.getElementById("output-"  + index);
 
             // Task 22: confirm before running to prevent accidental execution
             if (!confirm("Run '" + playbook + "'?")) {
@@ -47,7 +48,7 @@ document.addEventListener("DOMContentLoaded", function(){
             }
 
             // Show spinner in output area
-            outputEl.style.display = "block";
+            wrapperEl.style.display = "block";
             outputEl.innerHTML =
                 '<span class="output-spinner-wrapper">' +
                   '<span class="output-spinner"></span>' +
@@ -89,8 +90,9 @@ document.addEventListener("DOMContentLoaded", function(){
         btn.addEventListener("click", function(){
             const playbook = btn.getAttribute("data-playbook");
             const index = btn.getAttribute("data-index");
-            const outputEl = document.getElementById("output-" + index);
-            outputEl.style.display = "block";
+            const wrapperEl = document.getElementById("wrapper-" + index);
+            const outputEl  = document.getElementById("output-"  + index);
+            wrapperEl.style.display = "block";
             outputEl.textContent = "Loading...";
 
             fetch("/show_playbook", {
@@ -107,6 +109,29 @@ document.addEventListener("DOMContentLoaded", function(){
             })
             .catch(err => {
                 outputEl.textContent = "Error: Could not connect to server. " + err.message;
+            });
+        });
+    });
+
+    // Copy-to-clipboard for playbook output (improvement #32)
+    document.querySelectorAll(".copy-output-btn").forEach(btn => {
+        btn.addEventListener("click", function() {
+            const index    = btn.getAttribute("data-index");
+            const outputEl = document.getElementById("output-" + index);
+            const text     = outputEl.textContent || "";
+
+            if (!text.trim()) return;
+
+            navigator.clipboard.writeText(text).then(() => {
+                const prev = btn.textContent;
+                btn.textContent = "✓ Copied";
+                btn.classList.add("copied");
+                setTimeout(() => {
+                    btn.textContent = "📋";
+                    btn.classList.remove("copied");
+                }, 2000);
+            }).catch(() => {
+                showToast("Could not copy — please copy manually.", "error");
             });
         });
     });
