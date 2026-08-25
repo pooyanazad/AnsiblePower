@@ -314,6 +314,70 @@ class TestRunPlaybookValid(unittest.TestCase):
         mock_sub.assert_called_once()
 
 
+class TestRunPlaybookFailure(unittest.TestCase):
+    """Test 28 — run_playbook CalledProcessError: error output is returned."""
+
+    def setUp(self):
+        import ansiblePower
+        self.app = ansiblePower.app
+        self.app.config["TESTING"] = True
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.client = self.app.test_client()
+        self.ansiblePower = ansiblePower
+
+        import tempfile
+        self._tmp = tempfile.mkdtemp(prefix="ap_test28_")
+        self._playbooks_dir = os.path.join(self._tmp, "playbooks")
+        os.makedirs(self._playbooks_dir)
+
+        self._playbook_name = "failing.yml"
+        with open(os.path.join(self._playbooks_dir, self._playbook_name), "w") as fh:
+            fh.write("---\n- hosts: all\n  tasks: []\n")
+
+        self._config_file  = os.path.join(self._tmp, "config.json")
+        self._history_file = os.path.join(self._tmp, "history.json")
+
+        import json as _json
+        with open(self._config_file, "w") as fh:
+            _json.dump({
+                "playbooks_dir": self._playbooks_dir,
+                "hosts_file": os.path.join(self._tmp, "hosts"),
+            }, fh)
+
+        self._config_patcher  = patch("ansiblePower.CONFIG_FILE",  self._config_file)
+        self._history_patcher = patch("ansiblePower.HISTORY_FILE", self._history_file)
+        self._config_patcher.start()
+        self._history_patcher.start()
+
+    def tearDown(self):
+        self._config_patcher.stop()
+        self._history_patcher.stop()
+        import shutil
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def test_run_playbook_called_process_error(self):
+        """CalledProcessError: the error output from the exception is returned."""
+        import subprocess
+        error_output = b"fatal: [localhost]: UNREACHABLE!"
+        exc = subprocess.CalledProcessError(returncode=2, cmd=["ansible-playbook"], output=error_output)
+
+        with patch("ansiblePower.subprocess.check_output", side_effect=exc):
+            resp = self.client.post(
+                "/run_playbook",
+                data={"playbook": self._playbook_name},
+            )
+
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn("output", data)
+        self.assertIn("UNREACHABLE", data["output"])
+
+        # History still records the failure output
+        history = self.ansiblePower.load_history()
+        self.assertTrue(len(history) >= 1)
+        self.assertIn("UNREACHABLE", history[-1]["output"])
+
+
 if __name__ == "__main__":
     unittest.main()
 
