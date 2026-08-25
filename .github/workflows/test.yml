@@ -31,7 +31,6 @@ jobs:
   quality-tests:
     runs-on: ubuntu-latest
     name: Quality Tests (QT)
-    needs: unit-tests
     
     steps:
     - uses: actions/checkout@v4
@@ -53,7 +52,6 @@ jobs:
   smoke-tests:
     runs-on: ubuntu-latest
     name: Smoke Tests (ST)
-    needs: quality-tests
     
     steps:
     - uses: actions/checkout@v4
@@ -75,7 +73,6 @@ jobs:
   live-tests:
     runs-on: ubuntu-latest
     name: Live App Tests (LAT)
-    needs: smoke-tests
 
     steps:
     - uses: actions/checkout@v4
