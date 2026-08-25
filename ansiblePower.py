@@ -8,40 +8,11 @@ import subprocess
 import psutil
 import csv
 import logging
+import logging.handlers
 from datetime import datetime
 from io import StringIO
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Response, Blueprint
 from flask_wtf.csrf import CSRFProtect
-
-# =============================================================================
-# Custom Logging Handler: Keeps a maximum of 200 lines with newest messages at the top.
-# =============================================================================
-class CustomRotatingLogHandler(logging.Handler):
-    def __init__(self, filename, max_lines=200):
-        super().__init__()
-        self.filename = filename
-        self.max_lines = max_lines
-        log_dir = os.path.dirname(filename)
-        if not os.path.exists(log_dir):
-            os.makedirs(log_dir)
-        if not os.path.exists(filename):
-            with open(filename, "w") as f:
-                f.write("")
-
-    def emit(self, record):
-        try:
-            msg = self.format(record)
-            if os.path.exists(self.filename):
-                with open(self.filename, "r") as f:
-                    lines = f.readlines()
-            else:
-                lines = []
-            new_lines = [msg + "\n"] + lines
-            new_lines = new_lines[:self.max_lines]
-            with open(self.filename, "w") as f:
-                f.writelines(new_lines)
-        except Exception:
-            self.handleError(record)
 
 # =============================================================================
 # Configuration Variables
@@ -50,9 +21,14 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 logger = logging.getLogger("ansiblePower")
 logger.setLevel(logging.INFO)
-log_handler = CustomRotatingLogHandler(os.path.join(BASE_DIR, "logs/app.log"), max_lines=200)
-formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
-log_handler.setFormatter(formatter)
+_log_file = os.path.join(BASE_DIR, "logs/app.log")
+_log_dir = os.path.dirname(_log_file)
+if not os.path.exists(_log_dir):
+    os.makedirs(_log_dir)
+log_handler = logging.handlers.RotatingFileHandler(
+    _log_file, maxBytes=1_048_576, backupCount=3
+)
+log_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))
 logger.addHandler(log_handler)
 CONFIG_FILE = os.path.join(BASE_DIR, "data/config.json")
 DEFAULT_PLAYBOOKS_DIR = os.path.join(BASE_DIR, "playbooks")
