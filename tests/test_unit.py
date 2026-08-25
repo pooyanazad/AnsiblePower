@@ -436,6 +436,34 @@ class TestRunPlaybookTimeout(unittest.TestCase):
         self.assertIn("timed out", data["output"].lower())
 
 
+
+class TestHealthEndpoint(unittest.TestCase):
+    """Test 30 — GET /health returns HTTP 200 with {"status": "ok"}."""
+
+    def setUp(self):
+        import ansiblePower
+        self.app = ansiblePower.app
+        self.app.config["TESTING"] = True
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.client = self.app.test_client()
+
+    def test_health_returns_200(self):
+        """GET /health must respond 200 OK."""
+        resp = self.client.get("/health")
+        self.assertEqual(resp.status_code, 200)
+
+    def test_health_returns_status_ok(self):
+        """GET /health body must be {"status": "ok"}."""
+        resp = self.client.get("/health")
+        data = resp.get_json()
+        self.assertIsNotNone(data, "Response body must be valid JSON")
+        self.assertEqual(data.get("status"), "ok")
+
+    def test_health_content_type_is_json(self):
+        """GET /health must return application/json content-type."""
+        resp = self.client.get("/health")
+        self.assertIn("application/json", resp.content_type)
+
+
 if __name__ == "__main__":
     unittest.main()
-
