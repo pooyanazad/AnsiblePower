@@ -1,0 +1,208 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. v2.2)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - suite: test_unit.py
+            name: Unit Tests (UT)
+            live: false
+          - suite: test_quality.py
+            name: Quality Tests (QT)
+            live: false
+          - suite: test_smoke.py
+            name: Smoke Tests (ST)
+            live: false
+          - suite: test_live_app.py
+            name: Live App Tests (LAT)
+            live: true
+
+    name: ${{ matrix.name }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.9
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Start Flask app in background
+      if: matrix.live
+      run: |
+        python ansiblePower.py &
+        echo $! > flask.pid
+
+    - name: Wait for Flask to be ready
+      if: matrix.live
+      run: |
+        for i in $(seq 1 15); do
+          curl -sf http://localhost:5000/ && echo "Flask is up!" && exit 0
+          echo "Waiting... ($i)"
+          sleep 2
+        done
+        echo "Flask did not start in time" && exit 1
+
+    - name: Run tests
+      run: |
+        pytest tests/${{ matrix.suite }} -v
+
+    - name: Stop Flask app
+      if: matrix.live && always()
+      run: |
+        if [ -f flask.pid ]; then kill $(cat flask.pid) || true; fi
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    name: Create Release
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Validate version format
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+          echo "❌ Invalid version format: $VERSION"
+          echo "   Expected: v1.0, v2.1, v1.0.3, etc."
+          exit 1
+        fi
+        echo "✅ Version $VERSION is valid"
+
+    - name: Check tag does not already exist
+      run: |
+        if git rev-parse "${{ github.event.inputs.version }}" >/dev/null 2>&1; then
+          echo "❌ Tag ${{ github.event.inputs.version }} already exists!"
+          exit 1
+        fi
+        echo "✅ Tag ${{ github.event.inputs.version }} is available"
+
+    - name: Find previous release tag
+      id: prev_tag
+      run: |
+        PREV=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        if [ -z "$PREV" ]; then
+          echo "No previous tag found — will include entire history"
+          echo "range=" >> "$GITHUB_OUTPUT"
+        else
+          echo "Previous tag: $PREV"
+          echo "range=${PREV}..HEAD" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Generate release notes
+      id: notes
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        RANGE="${{ steps.prev_tag.outputs.range }}"
+        PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
+
+        # Collect commits (full subject line)
+        if [ -z "$RANGE" ]; then
+          COMMITS=$(git log --pretty=format:"%s" --reverse)
+        else
+          COMMITS=$(git log --pretty=format:"%s" --reverse "$RANGE")
+        fi
+
+        # Start building the release body
+        BODY="## What's New in ${VERSION}"$'\n\n'
+
+        # Category arrays — we append matching lines
+        FEAT=""
+        FIX=""
+        REFACTOR=""
+        TEST=""
+        DOCS=""
+        MAINT=""
+
+        while IFS= read -r msg; do
+          [ -z "$msg" ] && continue
+
+          # Strip optional scope, e.g.  feat(ui): ... → ...
+          clean=$(echo "$msg" | sed -E 's/^[a-z]+(\([^)]*\))?:\s*//')
+
+          # Capitalise first letter
+          clean="$(echo "${clean:0:1}" | tr '[:lower:]' '[:upper:]')${clean:1}"
+
+          case "$msg" in
+            feat:*|feat\(*) FEAT="${FEAT}- ${clean}"$'\n' ;;
+            fix:*|fix\(*)   FIX="${FIX}- ${clean}"$'\n' ;;
+            refactor:*|refactor\(*) REFACTOR="${REFACTOR}- ${clean}"$'\n' ;;
+            test:*|test\(*) TEST="${TEST}- ${clean}"$'\n' ;;
+            docs:*|doc:*)   DOCS="${DOCS}- ${clean}"$'\n' ;;
+            ci:*|ci\(*|chore:*|chore\(*) MAINT="${MAINT}- ${clean}"$'\n' ;;
+            *)              MAINT="${MAINT}- ${clean}"$'\n' ;;
+          esac
+        done <<< "$COMMITS"
+
+        # Append non-empty sections
+        [ -n "$FEAT" ]     && BODY="${BODY}### 🚀 New Features"$'\n\n'"${FEAT}"$'\n'
+        [ -n "$FIX" ]      && BODY="${BODY}### 🐛 Bug Fixes"$'\n\n'"${FIX}"$'\n'
+        [ -n "$REFACTOR" ] && BODY="${BODY}### ♻️ Refactoring"$'\n\n'"${REFACTOR}"$'\n'
+        [ -n "$TEST" ]     && BODY="${BODY}### 🧪 Testing"$'\n\n'"${TEST}"$'\n'
+        [ -n "$DOCS" ]     && BODY="${BODY}### 📝 Documentation"$'\n\n'"${DOCS}"$'\n'
+        [ -n "$MAINT" ]    && BODY="${BODY}### 🔧 Maintenance"$'\n\n'"${MAINT}"$'\n'
+
+        # Add comparison link when previous tag exists
+        if [ "$PREV_TAG" != "none" ]; then
+          REPO_URL="${{ github.server_url }}/${{ github.repository }}"
+          BODY="${BODY}---"$'\n\n'
+          BODY="${BODY}**Full changelog**: [${PREV_TAG}...${VERSION}](${REPO_URL}/compare/${PREV_TAG}...${VERSION})"$'\n'
+        fi
+
+        # Write to file (avoids multiline output issues)
+        echo "$BODY" > release_notes.md
+        echo "Generated release notes:"
+        cat release_notes.md
+
+    - name: Create GitHub Release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+
+        # Determine the top category for the title
+        TITLE_SUFFIX=""
+        if grep -q "### 🚀 New Features" release_notes.md; then
+          # Grab first feature bullet as title hint
+          FIRST_FEAT=$(grep -A1 "### 🚀 New Features" release_notes.md | tail -1 | sed 's/^- //')
+          TITLE_SUFFIX=": ${FIRST_FEAT}"
+        elif grep -q "### 🐛 Bug Fixes" release_notes.md; then
+          TITLE_SUFFIX=": Bug Fixes & Improvements"
+        elif grep -q "### ♻️ Refactoring" release_notes.md; then
+          TITLE_SUFFIX=": Refactoring & Improvements"
+        elif grep -q "### 🧪 Testing" release_notes.md; then
+          TITLE_SUFFIX=": Testing Improvements"
+        fi
+
+        # Truncate title if too long (keep under 80 chars)
+        FULL_TITLE="${VERSION}${TITLE_SUFFIX}"
+        if [ ${#FULL_TITLE} -gt 80 ]; then
+          FULL_TITLE="${FULL_TITLE:0:77}..."
+        fi
+
+        gh release create "$VERSION" \
+          --title "$FULL_TITLE" \
+          --notes-file release_notes.md \
+          --target main
