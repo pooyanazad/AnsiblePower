@@ -85,34 +85,35 @@ jobs:
       run: |
         VERSION="${{ github.event.inputs.version }}"
         if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
-          echo "❌ Invalid version format: $VERSION"
+          echo "Invalid version format: $VERSION"
           echo "   Expected: v1.0, v2.1, v1.0.3, etc."
           exit 1
         fi
-        echo "✅ Version $VERSION is valid"
+        echo "Version $VERSION is valid"
 
     - name: Check tag does not already exist
       run: |
         if git rev-parse "${{ github.event.inputs.version }}" >/dev/null 2>&1; then
-          echo "❌ Tag ${{ github.event.inputs.version }} already exists!"
+          echo "Tag ${{ github.event.inputs.version }} already exists!"
           exit 1
         fi
-        echo "✅ Tag ${{ github.event.inputs.version }} is available"
+        echo "Tag ${{ github.event.inputs.version }} is available"
 
     - name: Find previous release tag
       id: prev_tag
       run: |
         PREV=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
         if [ -z "$PREV" ]; then
-          echo "No previous tag found — will include entire history"
+          echo "No previous tag found, will include entire history"
           echo "range=" >> "$GITHUB_OUTPUT"
         else
           echo "Previous tag: $PREV"
           echo "range=${PREV}..HEAD" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Generate release notes
-      id: notes
+    - name: Generate release notes and create release
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
         VERSION="${{ github.event.inputs.version }}"
         RANGE="${{ steps.prev_tag.outputs.range }}"
@@ -125,38 +126,95 @@ jobs:
           COMMITS=$(git log --pretty=format:"%s" --reverse "$RANGE")
         fi
 
-        # Start building the release body
-        BODY="## What's New in ${VERSION}"$'\n\n'
-
-        # Category arrays — we append matching lines
+        # Category buckets and counters
         FEAT=""
         FIX=""
         REFACTOR=""
         TEST=""
         DOCS=""
         MAINT=""
+        FEAT_COUNT=0
+        FIX_COUNT=0
+        REFACTOR_COUNT=0
+        TEST_COUNT=0
+        DOCS_COUNT=0
+        MAINT_COUNT=0
 
         while IFS= read -r msg; do
           [ -z "$msg" ] && continue
 
-          # Strip optional scope, e.g.  feat(ui): ... → ...
-          clean=$(echo "$msg" | sed -E 's/^[a-z]+(\([^)]*\))?:\s*//')
+          # Strip conventional-commit prefix and optional scope
+          clean=$(echo "$msg" | sed -E 's/^[a-z]+(\([^)]*\))?: *//')
 
           # Capitalise first letter
           clean="$(echo "${clean:0:1}" | tr '[:lower:]' '[:upper:]')${clean:1}"
 
           case "$msg" in
-            feat:*|feat\(*) FEAT="${FEAT}- ${clean}"$'\n' ;;
-            fix:*|fix\(*)   FIX="${FIX}- ${clean}"$'\n' ;;
-            refactor:*|refactor\(*) REFACTOR="${REFACTOR}- ${clean}"$'\n' ;;
-            test:*|test\(*) TEST="${TEST}- ${clean}"$'\n' ;;
-            docs:*|doc:*)   DOCS="${DOCS}- ${clean}"$'\n' ;;
-            ci:*|ci\(*|chore:*|chore\(*) MAINT="${MAINT}- ${clean}"$'\n' ;;
-            *)              MAINT="${MAINT}- ${clean}"$'\n' ;;
+            feat:*|feat\(*)
+              FEAT="${FEAT}- ${clean}"$'\n'
+              FEAT_COUNT=$((FEAT_COUNT + 1))
+              ;;
+            fix:*|fix\(*)
+              FIX="${FIX}- ${clean}"$'\n'
+              FIX_COUNT=$((FIX_COUNT + 1))
+              ;;
+            refactor:*|refactor\(*)
+              REFACTOR="${REFACTOR}- ${clean}"$'\n'
+              REFACTOR_COUNT=$((REFACTOR_COUNT + 1))
+              ;;
+            test:*|test\(*)
+              TEST="${TEST}- ${clean}"$'\n'
+              TEST_COUNT=$((TEST_COUNT + 1))
+              ;;
+            docs:*|doc:*)
+              DOCS="${DOCS}- ${clean}"$'\n'
+              DOCS_COUNT=$((DOCS_COUNT + 1))
+              ;;
+            ci:*|ci\(*|chore:*|chore\(*)
+              MAINT="${MAINT}- ${clean}"$'\n'
+              MAINT_COUNT=$((MAINT_COUNT + 1))
+              ;;
+            *)
+              MAINT="${MAINT}- ${clean}"$'\n'
+              MAINT_COUNT=$((MAINT_COUNT + 1))
+              ;;
           esac
         done <<< "$COMMITS"
 
-        # Append non-empty sections
+        # --- Build a human-readable release title ---
+        TITLE_PARTS=""
+        [ "$FEAT_COUNT" -gt 0 ]     && TITLE_PARTS="${TITLE_PARTS}Features, "
+        [ "$FIX_COUNT" -gt 0 ]      && TITLE_PARTS="${TITLE_PARTS}Bug Fixes, "
+        [ "$REFACTOR_COUNT" -gt 0 ] && TITLE_PARTS="${TITLE_PARTS}Refactoring, "
+        [ "$TEST_COUNT" -gt 0 ]     && TITLE_PARTS="${TITLE_PARTS}Testing, "
+        [ "$DOCS_COUNT" -gt 0 ]     && TITLE_PARTS="${TITLE_PARTS}Documentation, "
+        [ "$MAINT_COUNT" -gt 0 ]    && TITLE_PARTS="${TITLE_PARTS}Maintenance, "
+
+        # Remove trailing ", " and replace last ", " with " & "
+        TITLE_PARTS=$(echo "$TITLE_PARTS" | sed 's/, $//')
+        TITLE_PARTS=$(echo "$TITLE_PARTS" | sed 's/\(.*\), /\1 \& /')
+
+        if [ -n "$TITLE_PARTS" ]; then
+          RELEASE_TITLE="${VERSION}: ${TITLE_PARTS}"
+        else
+          RELEASE_TITLE="${VERSION}"
+        fi
+
+        # Truncate if too long
+        if [ ${#RELEASE_TITLE} -gt 80 ]; then
+          RELEASE_TITLE="${RELEASE_TITLE:0:77}..."
+        fi
+
+        echo "Release title: $RELEASE_TITLE"
+
+        # --- Build release body ---
+        TOTAL=$((FEAT_COUNT + FIX_COUNT + REFACTOR_COUNT + TEST_COUNT + DOCS_COUNT + MAINT_COUNT))
+
+        BODY="We're happy to ship **AnsiblePower ${VERSION}**! "
+        BODY="${BODY}This release includes **${TOTAL} changes** since ${PREV_TAG}."$'\n\n'
+        BODY="${BODY}---"$'\n\n'
+        BODY="${BODY}## What's New in ${VERSION}"$'\n\n'
+
         [ -n "$FEAT" ]     && BODY="${BODY}### 🚀 New Features"$'\n\n'"${FEAT}"$'\n'
         [ -n "$FIX" ]      && BODY="${BODY}### 🐛 Bug Fixes"$'\n\n'"${FIX}"$'\n'
         [ -n "$REFACTOR" ] && BODY="${BODY}### ♻️ Refactoring"$'\n\n'"${REFACTOR}"$'\n'
@@ -171,38 +229,13 @@ jobs:
           BODY="${BODY}**Full changelog**: [${PREV_TAG}...${VERSION}](${REPO_URL}/compare/${PREV_TAG}...${VERSION})"$'\n'
         fi
 
-        # Write to file (avoids multiline output issues)
+        # Write notes to file
         echo "$BODY" > release_notes.md
         echo "Generated release notes:"
         cat release_notes.md
 
-    - name: Create GitHub Release
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        VERSION="${{ github.event.inputs.version }}"
-
-        # Determine the top category for the title
-        TITLE_SUFFIX=""
-        if grep -q "### 🚀 New Features" release_notes.md; then
-          # Grab first feature bullet as title hint
-          FIRST_FEAT=$(grep -A1 "### 🚀 New Features" release_notes.md | tail -1 | sed 's/^- //')
-          TITLE_SUFFIX=": ${FIRST_FEAT}"
-        elif grep -q "### 🐛 Bug Fixes" release_notes.md; then
-          TITLE_SUFFIX=": Bug Fixes & Improvements"
-        elif grep -q "### ♻️ Refactoring" release_notes.md; then
-          TITLE_SUFFIX=": Refactoring & Improvements"
-        elif grep -q "### 🧪 Testing" release_notes.md; then
-          TITLE_SUFFIX=": Testing Improvements"
-        fi
-
-        # Truncate title if too long (keep under 80 chars)
-        FULL_TITLE="${VERSION}${TITLE_SUFFIX}"
-        if [ ${#FULL_TITLE} -gt 80 ]; then
-          FULL_TITLE="${FULL_TITLE:0:77}..."
-        fi
-
+        # Create the release
         gh release create "$VERSION" \
-          --title "$FULL_TITLE" \
+          --title "$RELEASE_TITLE" \
           --notes-file release_notes.md \
           --target main
