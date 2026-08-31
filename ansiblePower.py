@@ -388,6 +388,16 @@ def update_hosts_file():
     if not new_hosts_file:
         return jsonify({"error": "Hosts file path cannot be empty"}), 400
 
+    # Security: reject paths containing '..' to prevent directory traversal
+    if ".." in new_hosts_file:
+        logger.warning("Rejected hosts_file path containing '..': %s", new_hosts_file)
+        return jsonify({"error": "Hosts file path must not contain '..'"}), 400
+
+    # Security: the path must point to an existing file
+    if not os.path.isfile(new_hosts_file):
+        logger.warning("Rejected hosts_file path that is not an existing file: %s", new_hosts_file)
+        return jsonify({"error": "Hosts file path must point to an existing file"}), 400
+
     # Security: restrict hosts file to paths inside BASE_DIR/data only.
     # Allowing arbitrary absolute paths enables arbitrary file read/write (e.g. ~/.ssh/id_rsa)
     real_new_hosts = os.path.realpath(new_hosts_file)
