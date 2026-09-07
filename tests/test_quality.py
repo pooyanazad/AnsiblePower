@@ -88,7 +88,9 @@ class TestFlaskRoutes(unittest.TestCase):
         response = self.client.post("/show_playbook", data={"playbook": "../../etc/passwd"})
         self.assertEqual(response.status_code, 400)
         data = json.loads(response.data)
-        self.assertIn("Invalid playbook path", data["error"])
+        # The filename regex (issue #29) fires before the path-traversal check for
+        # inputs like ../../etc/passwd; accept any error key — the 400 is the invariant.
+        self.assertIn("error", data)
 
     def test_run_playbook_missing_name_returns_400(self):
         response = self.client.post("/run_playbook", data={})

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """AnsiblePower — Lightweight web interface for managing Ansible playbooks."""
 import os
+import re
 import json
 import sqlite3
 import shutil
@@ -83,6 +84,10 @@ def get_hosts_file():
     return config.get("hosts_file", HOSTS_FILE)
 
 
+# Regex for safe playbook filenames — rejects spaces, slashes, special chars (closes #29)
+_PLAYBOOK_FILENAME_RE = re.compile(r'^[a-zA-Z0-9_.\-]+\.(?:yml|yaml)$')
+
+
 def _validate_playbook_path(name):
     """Validate *name* and return ``(absolute_path, error_response)``.
 
@@ -90,6 +95,11 @@ def _validate_playbook_path(name):
     on any validation failure.  Extracted from ``run_playbook`` / ``show_playbook``
     to eliminate duplication (closes #26).
     """
+    # Filename regex guard: only safe characters and a yml/yaml extension (closes #29)
+    if not _PLAYBOOK_FILENAME_RE.match(name):
+        logger.error("Invalid playbook filename rejected: %s", name)
+        return None, (jsonify({"error": "Invalid playbook filename"}), 400)
+
     playbooks_dir = get_playbooks_dir()
     playbook_path = os.path.join(playbooks_dir, name)
 
