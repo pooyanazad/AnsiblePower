@@ -82,6 +82,38 @@ def get_hosts_file():
     config = load_config()
     return config.get("hosts_file", HOSTS_FILE)
 
+
+def _validate_playbook_path(name):
+    """Validate *name* and return ``(absolute_path, error_response)``.
+
+    Returns ``(path, None)`` on success, or ``(None, (json_body, http_status))``
+    on any validation failure.  Extracted from ``run_playbook`` / ``show_playbook``
+    to eliminate duplication (closes #26).
+    """
+    playbooks_dir = get_playbooks_dir()
+    playbook_path = os.path.join(playbooks_dir, name)
+
+    # Path-traversal protection: resolved path must stay inside playbooks_dir
+    real_playbook = os.path.realpath(playbook_path)
+    real_dir = os.path.realpath(playbooks_dir)
+    try:
+        if os.path.commonpath([real_playbook, real_dir]) != real_dir:
+            raise ValueError("outside")
+    except ValueError:
+        logger.error("Path traversal attempt blocked: %s", name)
+        return None, (jsonify({"error": "Invalid playbook path"}), 400)
+
+    # Prevent a directory being passed as a playbook name
+    if os.path.isdir(real_playbook):
+        logger.error("Directory passed as playbook name: %s", name)
+        return None, (jsonify({"error": "Invalid playbook path"}), 400)
+
+    if not os.path.exists(playbook_path):
+        logger.error("Playbook does not exist: %s", playbook_path)
+        return None, (jsonify({"error": "Playbook does not exist"}), 404)
+
+    return playbook_path, None
+
 def get_history_db_file():
     """Return the SQLite database path for playbook history."""
     return os.path.splitext(HISTORY_FILE)[0] + ".db"
@@ -251,27 +283,9 @@ def run_playbook():
         logger.error("No playbook specified in run_playbook")
         return jsonify({"error": "No playbook specified"}), 400
 
-    playbooks_dir = get_playbooks_dir()
-    playbook_path = os.path.join(playbooks_dir, playbook_name)
-
-    # Path traversal protection: ensure resolved path is inside playbooks_dir
-    real_playbook = os.path.realpath(playbook_path)
-    real_dir = os.path.realpath(playbooks_dir)
-    try:
-        if os.path.commonpath([real_playbook, real_dir]) != real_dir:
-            raise ValueError("outside")
-    except ValueError:
-        logger.error("Path traversal attempt blocked: %s", playbook_name)
-        return jsonify({"error": "Invalid playbook path"}), 400
-
-    # Prevent directories from being passed as playbook names
-    if os.path.isdir(real_playbook):
-        logger.error("Directory passed as playbook name: %s", playbook_name)
-        return jsonify({"error": "Invalid playbook path"}), 400
-
-    if not os.path.exists(playbook_path):
-        logger.error("Playbook does not exist: %s", playbook_path)
-        return jsonify({"error": "Playbook does not exist"}), 404
+    playbook_path, err = _validate_playbook_path(playbook_name)
+    if err:
+        return err
 
     cmd = [ANSIBLE_PLAYBOOK, playbook_path]
 
@@ -313,27 +327,9 @@ def show_playbook():
         logger.error("No playbook specified in show_playbook")
         return jsonify({"error": "No playbook specified"}), 400
 
-    playbooks_dir = get_playbooks_dir()
-    playbook_path = os.path.join(playbooks_dir, playbook_name)
-
-    # Path traversal protection: ensure resolved path is inside playbooks_dir
-    real_playbook = os.path.realpath(playbook_path)
-    real_dir = os.path.realpath(playbooks_dir)
-    try:
-        if os.path.commonpath([real_playbook, real_dir]) != real_dir:
-            raise ValueError("outside")
-    except ValueError:
-        logger.error("Path traversal attempt blocked: %s", playbook_name)
-        return jsonify({"error": "Invalid playbook path"}), 400
-
-    # Prevent directories from being passed as playbook names
-    if os.path.isdir(real_playbook):
-        logger.error("Directory passed as playbook name: %s", playbook_name)
-        return jsonify({"error": "Invalid playbook path"}), 400
-
-    if not os.path.exists(playbook_path):
-        logger.error("Playbook does not exist: %s", playbook_path)
-        return jsonify({"error": "Playbook does not exist"}), 404
+    playbook_path, err = _validate_playbook_path(playbook_name)
+    if err:
+        return err
 
     try:
         with open(playbook_path, "r") as f:
