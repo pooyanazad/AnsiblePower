@@ -87,6 +87,8 @@ def get_hosts_file():
 # Regex for safe playbook filenames — rejects spaces, slashes, special chars (closes #29)
 _PLAYBOOK_FILENAME_RE = re.compile(r'^[a-zA-Z0-9_.\-]+\.(?:yml|yaml)$')
 
+# Dangerous top-level paths forbidden as the playbooks directory (closes #18)
+_DANGEROUS_DIR_PREFIXES = ("/etc", "/proc", "/sys")
 
 def _validate_playbook_path(name):
     """Validate *name* and return ``(absolute_path, error_response)``.
@@ -370,10 +372,16 @@ def update_playbooks_dir():
     if not new_dir:
         return jsonify({"error": "Directory path cannot be empty"}), 400
 
+    # Security (closes #18): reject known dangerous system paths.
+    real_new_dir = os.path.realpath(new_dir)
+    for dangerous in _DANGEROUS_DIR_PREFIXES:
+        if real_new_dir == dangerous or real_new_dir.startswith(dangerous + os.sep):
+            logger.warning("Rejected dangerous playbooks_dir path: %s", new_dir)
+            return jsonify({"error": f"Playbooks directory cannot be inside {dangerous}"}), 400
+
     # Security: restrict playbooks directory to paths inside BASE_DIR only.
     # Allowing arbitrary paths (e.g. "/") would bypass the commonpath check in
     # show_playbook and run_playbook, enabling arbitrary file read/execution.
-    real_new_dir = os.path.realpath(new_dir)
     real_base = os.path.realpath(BASE_DIR)
     try:
         if os.path.commonpath([real_new_dir, real_base]) != real_base:
@@ -381,6 +389,11 @@ def update_playbooks_dir():
     except ValueError:
         logger.warning("Rejected unsafe playbooks_dir path: %s", new_dir)
         return jsonify({"error": "Playbooks directory must be inside the application directory"}), 400
+
+    # Security (closes #18): the path must point to an existing directory.
+    if not os.path.isdir(real_new_dir):
+        logger.warning("Rejected playbooks_dir that is not an existing directory: %s", new_dir)
+        return jsonify({"error": "Playbooks directory must be an existing directory"}), 400
 
     config = load_config()
     config["playbooks_dir"] = new_dir
