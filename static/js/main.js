@@ -235,18 +235,24 @@ document.addEventListener("DOMContentLoaded", function(){
         });
     }
 
-    // Toggle dark mode
+    // Dark mode — stored in localStorage, no server round-trip (task 37)
+    function syncDarkModeButton() {
+        const isDark = document.documentElement.classList.contains('dark');
+        const icon  = document.getElementById('dark-mode-icon');
+        const label = document.getElementById('dark-mode-label');
+        if (icon)  { icon.className  = isDark ? 'fas fa-sun'   : 'fas fa-moon'; }
+        if (label) { label.textContent = isDark ? 'Light Mode' : 'Dark Mode'; }
+    }
+
+    // Sync button state on first load (dark class already applied by inline script)
+    syncDarkModeButton();
+
     const toggleDarkModeBtn = document.getElementById("toggle-dark-mode");
-    if(toggleDarkModeBtn) {
-        toggleDarkModeBtn.addEventListener("click", function(){
-            fetch("/settings/toggle_dark_mode", {
-                method: "POST",
-                headers: {"X-CSRFToken": csrfToken}
-            })
-            .then(r => r.json())
-            .then(data => {
-                location.reload();
-            });
+    if (toggleDarkModeBtn) {
+        toggleDarkModeBtn.addEventListener("click", function () {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('darkMode', isDark ? 'true' : 'false');
+            syncDarkModeButton();
         });
     }
 
