@@ -27,16 +27,16 @@
     </div>
 
     <div class="card mt-4">
-        <div class="card-header {% if dark_mode %}bg-dark text-light{% endif %}">
-            <h3 class="{% if dark_mode %}text-light{% endif %}">Playbooks Directory</h3>
+        <div class="card-header">
+            <h3>Playbooks Directory</h3>
         </div>
-        <div class="card-body {% if dark_mode %}bg-dark{% endif %}">
+        <div class="card-body">
             <form id="playbooks-dir-form">
                 <div class="form-group">
-                    <label for="playbooks_dir" class="{% if dark_mode %}text-light{% endif %}">Path to your Ansible playbooks:</label>
-                    <input type="text" class="form-control {% if dark_mode %}bg-dark text-light{% endif %}" id="playbooks_dir" name="playbooks_dir" 
+                    <label for="playbooks_dir">Path to your Ansible playbooks:</label>
+                    <input type="text" class="form-control" id="playbooks_dir" name="playbooks_dir"
                            value="{{ playbooks_dir }}" required>
-                    <small class="form-text {% if dark_mode %}text-light{% else %}text-muted{% endif %}">
+                    <small class="form-text text-muted">
                         Specify the full path to the directory containing your Ansible playbook files.
                     </small>
                 </div>
@@ -47,16 +47,16 @@
     </div>
 
     <div class="card mt-4">
-        <div class="card-header {% if dark_mode %}bg-dark text-light{% endif %}">
-            <h3 class="{% if dark_mode %}text-light{% endif %}">Hosts File Path</h3>
+        <div class="card-header">
+            <h3>Hosts File Path</h3>
         </div>
-        <div class="card-body {% if dark_mode %}bg-dark{% endif %}">
+        <div class="card-body">
             <form id="hosts-file-form">
                 <div class="form-group">
-                    <label for="hosts_file" class="{% if dark_mode %}text-light{% endif %}">Path to your Ansible hosts file:</label>
-                    <input type="text" class="form-control {% if dark_mode %}bg-dark text-light{% endif %}" id="hosts_file" name="hosts_file" 
+                    <label for="hosts_file">Path to your Ansible hosts file:</label>
+                    <input type="text" class="form-control" id="hosts_file" name="hosts_file"
                            value="{{ hosts_file }}" required>
-                    <small class="form-text {% if dark_mode %}text-light{% else %}text-muted{% endif %}">
+                    <small class="form-text text-muted">
                         Specify the full path to your Ansible hosts/inventory file.
                     </small>
                 </div>
