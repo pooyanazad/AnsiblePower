@@ -7,6 +7,8 @@ body {
     color: #2c3e50;
     line-height: 1.6;
     font-size: 14px;
+    /* Smooth dark mode transition (task 38) */
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Dark mode */
@@ -22,6 +24,8 @@ body {
     min-height: 100vh;
     box-shadow: 2px 0 10px rgba(0,0,0,0.1);
     border-right: 1px solid #dee2e6;
+    /* Smooth dark mode transition (task 38) */
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 /* Dark mode sidebar */
@@ -105,7 +109,7 @@ body {
     border-radius: 8px;
     margin-bottom: 8px;
     padding: 16px;
-    transition: all 0.3s ease;
+    transition: all 0.3s ease, background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
@@ -245,6 +249,8 @@ h1, h2, h3, h4, h5, h6 {
     border: none;
     margin-bottom: 20px;
     overflow: hidden;
+    /* Smooth dark mode transition (task 38) */
+    transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .dark .card {
@@ -257,6 +263,8 @@ h1, h2, h3, h4, h5, h6 {
     border-bottom: 1px solid #dee2e6;
     padding: 16px 20px;
     font-weight: 600;
+    /* Smooth dark mode transition (task 38) */
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
 .dark .card-header {
