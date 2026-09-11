@@ -264,7 +264,6 @@ def health():
 
 @main_bp.route("/")
 def homepage():
-    dark_mode = session.get("dark_mode", False)
     playbooks_dir = get_playbooks_dir()
     error = None
     prompt_for_dir = False
@@ -284,9 +283,9 @@ def homepage():
             logger.exception("Error listing playbooks: %s", e)
             playbooks = []
             error = "An error occurred while accessing the playbooks directory."
-    
-    return render_template("index.html", playbooks=playbooks, dark_mode=dark_mode, 
-                          error=error, prompt_for_dir=prompt_for_dir, playbooks_dir=playbooks_dir)
+
+    return render_template("index.html", playbooks=playbooks,
+                           error=error, prompt_for_dir=prompt_for_dir, playbooks_dir=playbooks_dir)
 
 @main_bp.route("/run_playbook", methods=["POST"])
 def run_playbook():
@@ -354,17 +353,15 @@ def show_playbook():
 
 @history_bp.route("/")
 def history():
-    dark_mode = session.get("dark_mode", False)
     history_data = load_history()
-    return render_template("history.html", history=history_data, dark_mode=dark_mode)
-    
+    return render_template("history.html", history=history_data)
+
 @settings_bp.route("/")
 def settings():
-    dark_mode = session.get("dark_mode", False)
     config = load_config()
     playbooks_dir = config.get("playbooks_dir", DEFAULT_PLAYBOOKS_DIR)
     hosts_file = config.get("hosts_file", HOSTS_FILE)
-    return render_template("settings.html", dark_mode=dark_mode, playbooks_dir=playbooks_dir, hosts_file=hosts_file)
+    return render_template("settings.html", playbooks_dir=playbooks_dir, hosts_file=hosts_file)
 
 @settings_bp.route("/update_playbooks_dir", methods=["POST"])
 def update_playbooks_dir():
@@ -493,16 +490,8 @@ def clear_history():
         logger.exception("Error clearing history")
         return jsonify({"error": "Error clearing history"}), 500
 
-@settings_bp.route("/toggle_dark_mode", methods=["POST"])
-def toggle_dark_mode():
-    try:
-        current = session.get("dark_mode", False)
-        session["dark_mode"] = not current
-        logger.info("Dark mode toggled to %s", session["dark_mode"])
-        return jsonify({"dark_mode": session["dark_mode"]})
-    except Exception as e:
-        logger.exception("Error toggling dark mode")
-        return jsonify({"error": "Error toggling dark mode"}), 500
+# Dark mode is now managed entirely client-side via localStorage.
+# The /settings/toggle_dark_mode endpoint has been removed (task 37).
 
 # ---------------------------------------------------------------------------
 # History Export and Import Endpoints (accessed from the History page)
