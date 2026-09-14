@@ -12,230 +12,465 @@ permissions:
   contents: write
 
 jobs:
-  test:
+  # ---------------------------------------------------------------------------
+  # Unit Tests
+  # ---------------------------------------------------------------------------
+  unit-tests:
+    name: Unit Tests
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - suite: test_unit.py
-            name: Unit Tests (UT)
-            live: false
-          - suite: test_quality.py
-            name: Quality Tests (QT)
-            live: false
-          - suite: test_smoke.py
-            name: Smoke Tests (ST)
-            live: false
-          - suite: test_live_app.py
-            name: Live App Tests (LAT)
-            live: true
-
-    name: ${{ matrix.name }}
-
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Python 3.9
-      uses: actions/setup-python@v5
-      with:
-        python-version: 3.9
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
 
-    - name: Start Flask app in background
-      if: matrix.live
-      run: |
-        python ansiblePower.py &
-        echo $! > flask.pid
+      - name: Run unit tests
+        run: |
+          mkdir -p reports
+          pytest tests/test_unit.py -v --tb=short \
+            --junitxml=reports/unit-results.xml \
+            --cov=ansiblePower --cov-report=term-missing \
+            --cov-report=xml:reports/unit-coverage.xml \
+            2>&1 | tee reports/unit-output.txt
 
-    - name: Wait for Flask to be ready
-      if: matrix.live
-      run: |
-        for i in $(seq 1 15); do
-          curl -sf http://localhost:5000/ && echo "Flask is up!" && exit 0
-          echo "Waiting... ($i)"
-          sleep 2
-        done
-        echo "Flask did not start in time" && exit 1
+      - name: Write step summary
+        if: always()
+        run: |
+          python - <<'EOF'
+          import xml.etree.ElementTree as ET, os
+          s = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")
+          try:
+              root = ET.parse("reports/unit-results.xml").getroot()
+              if root.tag == "testsuites": root = root[0]
+              t=int(root.get("tests",0)); f=int(root.get("failures",0))
+              e=int(root.get("errors",0)); sk=int(root.get("skipped",0))
+              p=t-f-e-sk; d=float(root.get("time",0))
+              ok = (f+e) == 0
+          except Exception as ex:
+              t=p=f=e=sk=0; d=0.0; ok=False
+          with open(s,"a") as out:
+              out.write("## Unit Tests\n\n")
+              out.write(f"**{'PASS' if ok else 'FAIL'}** | {t} total | {p} passed | {f+e} failed | {d:.1f}s\n\n")
+              out.write(f"| Passed | Failed | Errors | Skipped | Time |\n|---|---|---|---|---|\n")
+              out.write(f"| {p} | {f} | {e} | {sk} | {d:.2f}s |\n\n")
+          EOF
 
-    - name: Run tests
-      run: |
-        pytest tests/${{ matrix.suite }} -v
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-unit-report
+          path: reports/
+          retention-days: 30
 
-    - name: Stop Flask app
-      if: matrix.live && always()
-      run: |
-        if [ -f flask.pid ]; then kill $(cat flask.pid) || true; fi
+  # ---------------------------------------------------------------------------
+  # Quality Tests
+  # ---------------------------------------------------------------------------
+  quality-tests:
+    name: Quality Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run quality tests
+        run: |
+          mkdir -p reports
+          pytest tests/test_quality.py -v --tb=short \
+            --junitxml=reports/quality-results.xml \
+            --cov=ansiblePower --cov-report=term-missing \
+            --cov-report=xml:reports/quality-coverage.xml \
+            2>&1 | tee reports/quality-output.txt
+
+      - name: Write step summary
+        if: always()
+        run: |
+          python - <<'EOF'
+          import xml.etree.ElementTree as ET, os
+          s = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")
+          try:
+              root = ET.parse("reports/quality-results.xml").getroot()
+              if root.tag == "testsuites": root = root[0]
+              t=int(root.get("tests",0)); f=int(root.get("failures",0))
+              e=int(root.get("errors",0)); sk=int(root.get("skipped",0))
+              p=t-f-e-sk; d=float(root.get("time",0)); ok=(f+e)==0
+          except Exception:
+              t=p=f=e=sk=0; d=0.0; ok=False
+          with open(s,"a") as out:
+              out.write("## Quality Tests\n\n")
+              out.write(f"**{'PASS' if ok else 'FAIL'}** | {t} total | {p} passed | {f+e} failed | {d:.1f}s\n\n")
+              out.write(f"| Passed | Failed | Errors | Skipped | Time |\n|---|---|---|---|---|\n")
+              out.write(f"| {p} | {f} | {e} | {sk} | {d:.2f}s |\n\n")
+          EOF
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-quality-report
+          path: reports/
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Smoke Tests
+  # ---------------------------------------------------------------------------
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run smoke tests
+        run: |
+          mkdir -p reports
+          pytest tests/test_smoke.py -v --tb=short \
+            --junitxml=reports/smoke-results.xml \
+            --cov=ansiblePower --cov-report=term-missing \
+            --cov-report=xml:reports/smoke-coverage.xml \
+            2>&1 | tee reports/smoke-output.txt
+
+      - name: Write step summary
+        if: always()
+        run: |
+          python - <<'EOF'
+          import xml.etree.ElementTree as ET, os
+          s = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")
+          try:
+              root = ET.parse("reports/smoke-results.xml").getroot()
+              if root.tag == "testsuites": root = root[0]
+              t=int(root.get("tests",0)); f=int(root.get("failures",0))
+              e=int(root.get("errors",0)); sk=int(root.get("skipped",0))
+              p=t-f-e-sk; d=float(root.get("time",0)); ok=(f+e)==0
+          except Exception:
+              t=p=f=e=sk=0; d=0.0; ok=False
+          with open(s,"a") as out:
+              out.write("## Smoke Tests\n\n")
+              out.write(f"**{'PASS' if ok else 'FAIL'}** | {t} total | {p} passed | {f+e} failed | {d:.1f}s\n\n")
+              out.write(f"| Passed | Failed | Errors | Skipped | Time |\n|---|---|---|---|---|\n")
+              out.write(f"| {p} | {f} | {e} | {sk} | {d:.2f}s |\n\n")
+          EOF
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-smoke-report
+          path: reports/
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Live App Tests
+  # ---------------------------------------------------------------------------
+  live-tests:
+    name: Live App Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Start Flask app
+        run: |
+          mkdir -p reports
+          python ansiblePower.py > reports/flask.log 2>&1 &
+          echo $! > flask.pid
+
+      - name: Wait for Flask to be ready
+        run: |
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:5000/health > /dev/null; then
+              echo "Flask is up after ${i} attempt(s)"; exit 0
+            fi
+            echo "Waiting... attempt $i/15"; sleep 2
+          done
+          echo "Flask did not start"; cat reports/flask.log; exit 1
+
+      - name: Run live app tests
+        run: |
+          mkdir -p reports
+          pytest tests/test_live_app.py -v --tb=short \
+            --junitxml=reports/live-results.xml \
+            2>&1 | tee reports/live-output.txt
+
+      - name: Write step summary
+        if: always()
+        run: |
+          python - <<'EOF'
+          import xml.etree.ElementTree as ET, os
+          s = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")
+          try:
+              root = ET.parse("reports/live-results.xml").getroot()
+              if root.tag == "testsuites": root = root[0]
+              t=int(root.get("tests",0)); f=int(root.get("failures",0))
+              e=int(root.get("errors",0)); sk=int(root.get("skipped",0))
+              p=t-f-e-sk; d=float(root.get("time",0)); ok=(f+e)==0
+          except Exception:
+              t=p=f=e=sk=0; d=0.0; ok=False
+          with open(s,"a") as out:
+              out.write("## Live App Tests\n\n")
+              out.write(f"**{'PASS' if ok else 'FAIL'}** | {t} total | {p} passed | {f+e} failed | {d:.1f}s\n\n")
+              out.write(f"| Passed | Failed | Errors | Skipped | Time |\n|---|---|---|---|---|\n")
+              out.write(f"| {p} | {f} | {e} | {sk} | {d:.2f}s |\n\n")
+          EOF
+
+      - name: Stop Flask app
+        if: always()
+        run: |
+          if [ -f flask.pid ]; then kill $(cat flask.pid) || true; fi
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-live-report
+          path: reports/
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Consolidated gate — collects all results, blocks release on any failure
+  # ---------------------------------------------------------------------------
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests, quality-tests, smoke-tests, live-tests]
+    if: always()
+    steps:
+      - name: Download all reports
+        uses: actions/download-artifact@v4
+        with:
+          path: all-reports/
+        continue-on-error: true
+
+      - name: Write overall summary and gate
+        run: |
+          python - <<'EOF'
+          import xml.etree.ElementTree as ET, os, glob, sys
+
+          sp = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")
+          suites = [("unit","Unit Tests"),("quality","Quality Tests"),("smoke","Smoke Tests"),("live","Live Tests")]
+          tot = dict(t=0,p=0,f=0,e=0,d=0.0)
+          rows = []
+          failed = False
+
+          for key, label in suites:
+              xmls = glob.glob(f"all-reports/**/{key}-results.xml", recursive=True)
+              if not xmls:
+                  rows.append(f"| {label} | No report | - | - | - | - |"); continue
+              try:
+                  root = ET.parse(xmls[0]).getroot()
+                  if root.tag == "testsuites": root = root[0]
+                  t=int(root.get("tests",0)); f=int(root.get("failures",0))
+                  e=int(root.get("errors",0)); s=int(root.get("skipped",0))
+                  p=t-f-e-s; d=float(root.get("time",0))
+                  st="PASS" if (f+e)==0 else "FAIL"
+                  if (f+e): failed=True
+                  rows.append(f"| {label} | {st} | {t} | {p} | {f+e} | {d:.1f}s |")
+                  tot["t"]+=t; tot["p"]+=p; tot["f"]+=f+e; tot["d"]+=d
+              except Exception as ex:
+                  rows.append(f"| {label} | Error: {ex} | - | - | - | - |"); failed=True
+
+          overall = "All Passed - ready to release" if not failed else "FAILED - release blocked"
+          with open(sp,"a") as out:
+              out.write("# Pre-Release Test Summary\n\n")
+              out.write(f"**Overall: {overall}**\n\n")
+              out.write("| Suite | Result | Total | Passed | Failed | Time |\n")
+              out.write("|---|---|---|---|---|---|\n")
+              for r in rows: out.write(r + "\n")
+              out.write(f"\n**Totals**: {tot['t']} tests, {tot['p']} passed, {tot['f']} failed, {tot['d']:.1f}s total\n")
+
+          if failed:
+              sys.exit(1)
+          EOF
+
+  # ---------------------------------------------------------------------------
+  # Create Release — only runs when all tests pass
+  # ---------------------------------------------------------------------------
   release:
-    needs: test
-    runs-on: ubuntu-latest
     name: Create Release
-
+    needs: test-summary
+    runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Validate version format
-      run: |
-        VERSION="${{ github.event.inputs.version }}"
-        if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
-          echo "Invalid version format: $VERSION"
-          echo "   Expected: v1.0, v2.1, v1.0.3, etc."
-          exit 1
-        fi
-        echo "Version $VERSION is valid"
+      - name: Validate version format
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "Invalid version: $VERSION. Expected: v1.0, v2.1, v1.0.3"; exit 1
+          fi
+          echo "Version $VERSION is valid"
 
-    - name: Check tag does not already exist
-      run: |
-        if git rev-parse "${{ github.event.inputs.version }}" >/dev/null 2>&1; then
-          echo "Tag ${{ github.event.inputs.version }} already exists!"
-          exit 1
-        fi
-        echo "Tag ${{ github.event.inputs.version }} is available"
+      - name: Check tag does not already exist
+        run: |
+          if git rev-parse "${{ github.event.inputs.version }}" > /dev/null 2>&1; then
+            echo "Tag ${{ github.event.inputs.version }} already exists!"; exit 1
+          fi
+          echo "Tag ${{ github.event.inputs.version }} is available"
 
-    - name: Find previous release tag
-      id: prev_tag
-      run: |
-        PREV=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-        if [ -z "$PREV" ]; then
-          echo "No previous tag found, will include entire history"
-          echo "range=" >> "$GITHUB_OUTPUT"
-        else
-          echo "Previous tag: $PREV"
-          echo "range=${PREV}..HEAD" >> "$GITHUB_OUTPUT"
-        fi
+      - name: Find previous release tag
+        id: prev_tag
+        run: |
+          PREV=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$PREV" ]; then
+            echo "range=" >> "$GITHUB_OUTPUT"
+          else
+            echo "range=${PREV}..HEAD" >> "$GITHUB_OUTPUT"
+          fi
 
-    - name: Generate release notes and create release
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        VERSION="${{ github.event.inputs.version }}"
-        RANGE="${{ steps.prev_tag.outputs.range }}"
-        PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
+      - name: Download all test reports
+        uses: actions/download-artifact@v4
+        with:
+          path: all-reports/
+        continue-on-error: true
 
-        # Collect commits (full subject line)
-        if [ -z "$RANGE" ]; then
-          COMMITS=$(git log --pretty=format:"%s" --reverse)
-        else
-          COMMITS=$(git log --pretty=format:"%s" --reverse "$RANGE")
-        fi
+      - name: Build test results table
+        run: |
+          python - <<'EOF'
+          import xml.etree.ElementTree as ET, glob
 
-        # Category buckets and counters
-        FEAT=""
-        FIX=""
-        REFACTOR=""
-        TEST=""
-        DOCS=""
-        MAINT=""
-        FEAT_COUNT=0
-        FIX_COUNT=0
-        REFACTOR_COUNT=0
-        TEST_COUNT=0
-        DOCS_COUNT=0
-        MAINT_COUNT=0
+          suites = [("unit","Unit Tests"),("quality","Quality Tests"),("smoke","Smoke Tests"),("live","Live Tests")]
+          lines = ["| Suite | Result | Tests | Passed | Failed | Time |", "|---|---|---|---|---|---|"]
+          for key, label in suites:
+              xmls = glob.glob(f"all-reports/**/{key}-results.xml", recursive=True)
+              if not xmls:
+                  lines.append(f"| {label} | No report | - | - | - | - |"); continue
+              try:
+                  root = ET.parse(xmls[0]).getroot()
+                  if root.tag == "testsuites": root = root[0]
+                  t=int(root.get("tests",0)); f=int(root.get("failures",0))
+                  e=int(root.get("errors",0)); s=int(root.get("skipped",0))
+                  p=t-f-e-s; d=float(root.get("time",0))
+                  st = "PASS" if (f+e)==0 else "FAIL"
+                  lines.append(f"| {label} | {st} | {t} | {p} | {f+e} | {d:.1f}s |")
+              except Exception as ex:
+                  lines.append(f"| {label} | Error | - | - | - | - |")
 
-        while IFS= read -r msg; do
-          [ -z "$msg" ] && continue
+          with open("/tmp/test_table.md", "w") as out:
+              out.write("\n".join(lines) + "\n")
+          EOF
 
-          # Strip conventional-commit prefix and optional scope
-          clean=$(echo "$msg" | sed -E 's/^[a-z]+(\([^)]*\))?: *//')
+      - name: Generate release notes and create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          RANGE="${{ steps.prev_tag.outputs.range }}"
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
 
-          # Capitalise first letter
-          clean="$(echo "${clean:0:1}" | tr '[:lower:]' '[:upper:]')${clean:1}"
+          if [ -z "$RANGE" ]; then
+            COMMITS=$(git log --pretty=format:"%s" --reverse)
+          else
+            COMMITS=$(git log --pretty=format:"%s" --reverse "$RANGE")
+          fi
 
-          case "$msg" in
-            feat:*|feat\(*)
-              FEAT="${FEAT}- ${clean}"$'\n'
-              FEAT_COUNT=$((FEAT_COUNT + 1))
-              ;;
-            fix:*|fix\(*)
-              FIX="${FIX}- ${clean}"$'\n'
-              FIX_COUNT=$((FIX_COUNT + 1))
-              ;;
-            refactor:*|refactor\(*)
-              REFACTOR="${REFACTOR}- ${clean}"$'\n'
-              REFACTOR_COUNT=$((REFACTOR_COUNT + 1))
-              ;;
-            test:*|test\(*)
-              TEST="${TEST}- ${clean}"$'\n'
-              TEST_COUNT=$((TEST_COUNT + 1))
-              ;;
-            docs:*|doc:*)
-              DOCS="${DOCS}- ${clean}"$'\n'
-              DOCS_COUNT=$((DOCS_COUNT + 1))
-              ;;
-            ci:*|ci\(*|chore:*|chore\(*)
-              MAINT="${MAINT}- ${clean}"$'\n'
-              MAINT_COUNT=$((MAINT_COUNT + 1))
-              ;;
-            *)
-              MAINT="${MAINT}- ${clean}"$'\n'
-              MAINT_COUNT=$((MAINT_COUNT + 1))
-              ;;
-          esac
-        done <<< "$COMMITS"
+          FEAT="" FIX="" REFACTOR="" TEST="" DOCS="" MAINT=""
+          FEAT_COUNT=0 FIX_COUNT=0 REFACTOR_COUNT=0 TEST_COUNT=0 DOCS_COUNT=0 MAINT_COUNT=0
 
-        # --- Build a human-readable release title ---
-        TITLE_PARTS=""
-        [ "$FEAT_COUNT" -gt 0 ]     && TITLE_PARTS="${TITLE_PARTS}Features, "
-        [ "$FIX_COUNT" -gt 0 ]      && TITLE_PARTS="${TITLE_PARTS}Bug Fixes, "
-        [ "$REFACTOR_COUNT" -gt 0 ] && TITLE_PARTS="${TITLE_PARTS}Refactoring, "
-        [ "$TEST_COUNT" -gt 0 ]     && TITLE_PARTS="${TITLE_PARTS}Testing, "
-        [ "$DOCS_COUNT" -gt 0 ]     && TITLE_PARTS="${TITLE_PARTS}Documentation, "
-        [ "$MAINT_COUNT" -gt 0 ]    && TITLE_PARTS="${TITLE_PARTS}Maintenance, "
+          while IFS= read -r msg; do
+            [ -z "$msg" ] && continue
+            clean=$(echo "$msg" | sed -E 's/^[a-z]+(\([^)]*\))?: *//')
+            clean="$(echo "${clean:0:1}" | tr '[:lower:]' '[:upper:]')${clean:1}"
+            case "$msg" in
+              feat:*|feat\(*) FEAT="${FEAT}- ${clean}"$'\n'; FEAT_COUNT=$((FEAT_COUNT+1)) ;;
+              fix:*|fix\(*)   FIX="${FIX}- ${clean}"$'\n';  FIX_COUNT=$((FIX_COUNT+1)) ;;
+              refactor:*|refactor\(*) REFACTOR="${REFACTOR}- ${clean}"$'\n'; REFACTOR_COUNT=$((REFACTOR_COUNT+1)) ;;
+              test:*|test\(*) TEST="${TEST}- ${clean}"$'\n'; TEST_COUNT=$((TEST_COUNT+1)) ;;
+              docs:*|doc:*)   DOCS="${DOCS}- ${clean}"$'\n'; DOCS_COUNT=$((DOCS_COUNT+1)) ;;
+              *)              MAINT="${MAINT}- ${clean}"$'\n'; MAINT_COUNT=$((MAINT_COUNT+1)) ;;
+            esac
+          done <<< "$COMMITS"
 
-        # Remove trailing ", " and replace last ", " with " & "
-        TITLE_PARTS=$(echo "$TITLE_PARTS" | sed 's/, $//')
-        TITLE_PARTS=$(echo "$TITLE_PARTS" | sed 's/\(.*\), /\1 \& /')
+          TITLE_PARTS=""
+          [ "$FEAT_COUNT"     -gt 0 ] && TITLE_PARTS="${TITLE_PARTS}Features, "
+          [ "$FIX_COUNT"      -gt 0 ] && TITLE_PARTS="${TITLE_PARTS}Bug Fixes, "
+          [ "$REFACTOR_COUNT" -gt 0 ] && TITLE_PARTS="${TITLE_PARTS}Refactoring, "
+          [ "$TEST_COUNT"     -gt 0 ] && TITLE_PARTS="${TITLE_PARTS}Testing, "
+          [ "$DOCS_COUNT"     -gt 0 ] && TITLE_PARTS="${TITLE_PARTS}Documentation, "
+          [ "$MAINT_COUNT"    -gt 0 ] && TITLE_PARTS="${TITLE_PARTS}Maintenance, "
+          TITLE_PARTS=$(echo "$TITLE_PARTS" | sed 's/, $//')
+          TITLE_PARTS=$(echo "$TITLE_PARTS" | sed 's/\(.*\), /\1 \& /')
+          RELEASE_TITLE="${VERSION}${TITLE_PARTS:+: $TITLE_PARTS}"
+          [ ${#RELEASE_TITLE} -gt 80 ] && RELEASE_TITLE="${RELEASE_TITLE:0:77}..."
 
-        if [ -n "$TITLE_PARTS" ]; then
-          RELEASE_TITLE="${VERSION}: ${TITLE_PARTS}"
-        else
-          RELEASE_TITLE="${VERSION}"
-        fi
-
-        # Truncate if too long
-        if [ ${#RELEASE_TITLE} -gt 80 ]; then
-          RELEASE_TITLE="${RELEASE_TITLE:0:77}..."
-        fi
-
-        echo "Release title: $RELEASE_TITLE"
-
-        # --- Build release body ---
-        TOTAL=$((FEAT_COUNT + FIX_COUNT + REFACTOR_COUNT + TEST_COUNT + DOCS_COUNT + MAINT_COUNT))
-
-        BODY="We're happy to ship **AnsiblePower ${VERSION}**! "
-        BODY="${BODY}This release includes **${TOTAL} changes** since ${PREV_TAG}."$'\n\n'
-        BODY="${BODY}---"$'\n\n'
-        BODY="${BODY}## What's New in ${VERSION}"$'\n\n'
-
-        [ -n "$FEAT" ]     && BODY="${BODY}### 🚀 New Features"$'\n\n'"${FEAT}"$'\n'
-        [ -n "$FIX" ]      && BODY="${BODY}### 🐛 Bug Fixes"$'\n\n'"${FIX}"$'\n'
-        [ -n "$REFACTOR" ] && BODY="${BODY}### ♻️ Refactoring"$'\n\n'"${REFACTOR}"$'\n'
-        [ -n "$TEST" ]     && BODY="${BODY}### 🧪 Testing"$'\n\n'"${TEST}"$'\n'
-        [ -n "$DOCS" ]     && BODY="${BODY}### 📝 Documentation"$'\n\n'"${DOCS}"$'\n'
-        [ -n "$MAINT" ]    && BODY="${BODY}### 🔧 Maintenance"$'\n\n'"${MAINT}"$'\n'
-
-        # Add comparison link when previous tag exists
-        if [ "$PREV_TAG" != "none" ]; then
-          REPO_URL="${{ github.server_url }}/${{ github.repository }}"
+          TOTAL=$((FEAT_COUNT+FIX_COUNT+REFACTOR_COUNT+TEST_COUNT+DOCS_COUNT+MAINT_COUNT))
+          BODY="We're happy to ship **AnsiblePower ${VERSION}**! "
+          BODY="${BODY}This release includes **${TOTAL} changes** since ${PREV_TAG}."$'\n\n'
           BODY="${BODY}---"$'\n\n'
-          BODY="${BODY}**Full changelog**: [${PREV_TAG}...${VERSION}](${REPO_URL}/compare/${PREV_TAG}...${VERSION})"$'\n'
-        fi
+          BODY="${BODY}## What's New in ${VERSION}"$'\n\n'
+          [ -n "$FEAT"     ] && BODY="${BODY}### New Features"$'\n\n'"${FEAT}"$'\n'
+          [ -n "$FIX"      ] && BODY="${BODY}### Bug Fixes"$'\n\n'"${FIX}"$'\n'
+          [ -n "$REFACTOR" ] && BODY="${BODY}### Refactoring"$'\n\n'"${REFACTOR}"$'\n'
+          [ -n "$TEST"     ] && BODY="${BODY}### Testing"$'\n\n'"${TEST}"$'\n'
+          [ -n "$DOCS"     ] && BODY="${BODY}### Documentation"$'\n\n'"${DOCS}"$'\n'
+          [ -n "$MAINT"    ] && BODY="${BODY}### Maintenance"$'\n\n'"${MAINT}"$'\n'
 
-        # Write notes to file
-        echo "$BODY" > release_notes.md
-        echo "Generated release notes:"
-        cat release_notes.md
+          TEST_TABLE=$(cat /tmp/test_table.md 2>/dev/null || echo "| Could not read test reports |")
+          BODY="${BODY}"$'\n'"---"$'\n\n'
+          BODY="${BODY}## Pre-Release Test Results"$'\n\n'
+          BODY="${BODY}${TEST_TABLE}"$'\n'
 
-        # Create the release
-        gh release create "$VERSION" \
-          --title "$RELEASE_TITLE" \
-          --notes-file release_notes.md \
-          --target main
+          if [ "$PREV_TAG" != "none" ]; then
+            REPO_URL="${{ github.server_url }}/${{ github.repository }}"
+            BODY="${BODY}"$'\n'"---"$'\n\n'
+            BODY="${BODY}**Full changelog**: [${PREV_TAG}...${VERSION}](${REPO_URL}/compare/${PREV_TAG}...${VERSION})"$'\n'
+          fi
+
+          echo "$BODY" > release_notes.md
+          cat release_notes.md
+
+          gh release create "$VERSION" \
+            --title "$RELEASE_TITLE" \
+            --notes-file release_notes.md \
+            --target main
+
+      - name: Write release summary
+        if: always()
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          {
+            echo "## Release Created"
+            echo ""
+            echo "**Version:** \`${VERSION}\`"
+            echo ""
+            echo "[View on GitHub](${{ github.server_url }}/${{ github.repository }}/releases/tag/${VERSION})"
+          } >> "$GITHUB_STEP_SUMMARY"
