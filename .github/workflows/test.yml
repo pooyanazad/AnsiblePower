@@ -37,6 +37,7 @@ jobs:
 
       - name: 🔬 Run unit tests
         run: |
+          mkdir -p reports
           pytest tests/test_unit.py \
             -v \
             --tb=short \
@@ -123,6 +124,7 @@ jobs:
 
       - name: 🏆 Run quality tests
         run: |
+          mkdir -p reports
           pytest tests/test_quality.py \
             -v \
             --tb=short \
@@ -208,6 +210,7 @@ jobs:
 
       - name: 💨 Run smoke tests
         run: |
+          mkdir -p reports
           pytest tests/test_smoke.py \
             -v \
             --tb=short \
@@ -313,6 +316,7 @@ jobs:
 
       - name: 🌐 Run live app tests
         run: |
+          mkdir -p reports
           pytest tests/test_live_app.py \
             -v \
             --tb=short \
