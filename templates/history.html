@@ -22,7 +22,14 @@
                 <td>{{ record.time }}</td>
                 <td>{{ record.playbook }}</td>
                 <td>{{ record.action }}</td>
-                <td><pre style="white-space: pre-wrap;">{{ record.output }}</pre></td>
+                <td>
+                    <div class="history-output-wrapper">
+                        <pre class="history-output" style="white-space: pre-wrap;">{{ record.output }}</pre>
+                        <button class="btn btn-sm btn-link history-toggle-btn" style="display:none;" aria-expanded="false">
+                            Show more ▼
+                        </button>
+                    </div>
+                </td>
             </tr>
             {% endfor %}
         </tbody>

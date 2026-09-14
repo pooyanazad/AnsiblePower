@@ -425,3 +425,47 @@ h1, h2, h3, h4, h5, h6 {
     border-color: #48bb78;
     color: #48bb78;
 }
+
+/* ── Task 39: History output truncation ──────────────────────────────────── */
+.history-output-wrapper {
+    position: relative;
+}
+
+.history-output {
+    max-height: 80px;
+    overflow: hidden;
+    margin: 0;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    transition: max-height 0.3s ease;
+}
+
+.history-output.expanded {
+    max-height: 2000px; /* large enough for any output */
+}
+
+.history-toggle-btn {
+    padding: 2px 6px;
+    font-size: 11px;
+    color: #007bff;
+    text-decoration: none;
+    border: none;
+    background: none;
+    cursor: pointer;
+    margin-top: 2px;
+}
+
+.history-toggle-btn:hover {
+    color: #0056b3;
+    text-decoration: underline;
+}
+
+.dark .history-toggle-btn {
+    color: #63b3ed;
+}
+
+.dark .history-toggle-btn:hover {
+    color: #90cdf4;
+}
