@@ -1,0 +1,8 @@
+# Development + test dependencies (extends requirements.txt)
+-r requirements.txt
+
+pytest==7.4.3
+pytest-cov==4.1.0
+unittest-xml-reporting==3.2.0
+requests==2.31.0
+beautifulsoup4==4.12.2
