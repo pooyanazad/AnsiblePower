@@ -336,4 +336,22 @@ document.addEventListener("DOMContentLoaded", function(){
             });
         });
     }
+
+    // Task 39: History output Show more / Show less toggle
+    document.querySelectorAll('.history-output').forEach(function(pre) {
+        var wrapper = pre.closest('.history-output-wrapper');
+        if (!wrapper) return;
+        var btn = wrapper.querySelector('.history-toggle-btn');
+        if (!btn) return;
+
+        // Only show toggle if content overflows the 80px cap
+        if (pre.scrollHeight > 80) {
+            btn.style.display = 'inline-block';
+            btn.addEventListener('click', function() {
+                var expanded = pre.classList.toggle('expanded');
+                btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                btn.textContent = expanded ? 'Show less ▲' : 'Show more ▼';
+            });
+        }
+    });
 });
