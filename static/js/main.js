@@ -199,7 +199,7 @@ document.addEventListener("DOMContentLoaded", function(){
         });
     }
 
-    // System status
+    // System status — Task 42: colored progress bars
     const statusBtn = document.getElementById("status-btn");
     const statusBox = document.getElementById("status-box");
     if(statusBtn && statusBox) {
@@ -207,8 +207,32 @@ document.addEventListener("DOMContentLoaded", function(){
             fetch("/settings/system_status")
             .then(r => r.json())
             .then(data => {
+                if (data.error) {
+                    statusBox.innerHTML = '<p class="text-danger">' + data.error + '</p>';
+                    statusBox.style.display = "block";
+                    return;
+                }
+                function gaugeColor(pct) {
+                    if (pct < 60)  return 'success';
+                    if (pct < 80)  return 'warning';
+                    return 'danger';
+                }
+                var cpuPct = parseFloat(data.cpu).toFixed(1);
+                var memPct = parseFloat(data.memory).toFixed(1);
+                statusBox.innerHTML =
+                    '<div class="mb-2">'
+                    + '<label class="d-flex justify-content-between"><span>CPU</span><strong>' + cpuPct + '%</strong></label>'
+                    + '<div class="progress" style="height:18px;">'
+                    + '<div class="progress-bar bg-' + gaugeColor(cpuPct) + '" role="progressbar" '
+                    + 'style="width:' + cpuPct + '%;" aria-valuenow="' + cpuPct + '" aria-valuemin="0" aria-valuemax="100">'
+                    + '</div></div></div>'
+                    + '<div>'
+                    + '<label class="d-flex justify-content-between"><span>Memory</span><strong>' + memPct + '%</strong></label>'
+                    + '<div class="progress" style="height:18px;">'
+                    + '<div class="progress-bar bg-' + gaugeColor(memPct) + '" role="progressbar" '
+                    + 'style="width:' + memPct + '%;" aria-valuenow="' + memPct + '" aria-valuemin="0" aria-valuemax="100">'
+                    + '</div></div></div>';
                 statusBox.style.display = "block";
-                statusBox.textContent = "CPU: " + data.cpu + "% | Memory: " + data.memory + "%";
             });
         });
     }
