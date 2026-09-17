@@ -5,6 +5,24 @@
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navbarNav">
+      <!-- task 46: mobile navigation links inside collapse so they appear in hamburger menu -->
+      <ul class="navbar-nav mr-auto d-lg-none">
+        <li class="nav-item">
+          <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="{{ url_for('main.homepage') }}">
+            <i class="fas fa-home mr-1"></i> Home
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if '/history' in request.path %}active{% endif %}" href="{{ url_for('history.history') }}">
+            <i class="fas fa-history mr-1"></i> History
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if '/settings' in request.path %}active{% endif %}" href="{{ url_for('settings.settings') }}">
+            <i class="fas fa-cog mr-1"></i> Settings
+          </a>
+        </li>
+      </ul>
       <ul class="navbar-nav ml-auto">
         <li class="nav-item">
           <!-- Icon and label are updated by JS based on localStorage (task 37) -->
