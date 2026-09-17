@@ -6,8 +6,8 @@ We welcome contributions of all kinds, from bug fixes to new features and docume
 
 ## Getting Started
 
-1. **Find an Issue**: Check our [open issues](https://github.com/pooyanazad/AnsiblePower/issues) to find something you'd like to work on.
-2. **Fork & Branch**: Fork the repository and create a new branch for your feature or bug fix.
+1. **Find an Issue**: Check our [open issues](https://github.com/pooyanazad/AnsiblePower/issues) to find something you'd like to work on. **Please comment on an issue to get assigned by maintainers before starting work and opening a PR.**
+2. **Fork & Branch**: Once assigned, fork the repository and create a new branch for your feature or bug fix.
 3. **Test Your Changes**: Ensure that your code passes our CI pipeline (unit tests, formatting checks) and can run locally using Docker.
 4. **Submit a PR**: Open a Pull Request using our provided template.
 
