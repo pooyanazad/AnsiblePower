@@ -394,11 +394,20 @@ def import_history():
     if file.filename == "":
         return jsonify({"error": "Empty file name"}), 400
     try:
-        if file.filename.endswith(".json"):
-            data = json.load(file)
-        elif file.filename.endswith(".csv"):
+        filename_lower = file.filename.lower()
+        if filename_lower.endswith(".json"):
+            try:
+                data = json.load(file)
+            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                return jsonify({"error": f"Invalid JSON format: {e}"}), 400
+        elif filename_lower.endswith(".csv"):
             data = []
-            stream = StringIO(file.stream.read().decode("UTF8"), newline=None)
+            try:
+                raw_bytes = file.stream.read()
+                text = raw_bytes.decode("utf-8")
+            except UnicodeDecodeError as e:
+                return jsonify({"error": f"File encoding error: must be UTF-8 ({e})"}), 400
+            stream = StringIO(text, newline=None)
             csv_input = csv.DictReader(stream)
             for row in csv_input:
                 data.append(row)

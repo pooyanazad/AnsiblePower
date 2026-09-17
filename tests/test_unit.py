@@ -487,12 +487,18 @@ class TestImportHistory(unittest.TestCase):
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.client = self.app.test_client()
 
+        # Isolate save_history so tests don't modify or wipe persistent test data
+        self.patcher_save = patch("ansiblePower.save_history")
+        self.mock_save_history = self.patcher_save.start()
+        self.addCleanup(self.patcher_save.stop)
+
     def test_import_history_missing_file(self):
         """Missing file field in multipart form data must return 400."""
         resp = self.client.post("/history/import_history")
         self.assertEqual(resp.status_code, 400)
         data = resp.get_json()
         self.assertEqual(data.get("error"), "No file provided")
+        self.mock_save_history.assert_not_called()
 
     def test_import_history_empty_filename(self):
         """Empty filename must return 400."""
@@ -505,6 +511,7 @@ class TestImportHistory(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
         data = resp.get_json()
         self.assertEqual(data.get("error"), "Empty file name")
+        self.mock_save_history.assert_not_called()
 
     def test_import_history_unsupported_file_type(self):
         """Non-JSON, non-CSV file must return 400."""
@@ -517,6 +524,7 @@ class TestImportHistory(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
         data = resp.get_json()
         self.assertIn("Unsupported file type", data.get("error", ""))
+        self.mock_save_history.assert_not_called()
 
     def test_import_history_invalid_json_format(self):
         """JSON payload that is not a list must return 400."""
@@ -529,6 +537,46 @@ class TestImportHistory(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
         data = resp.get_json()
         self.assertIn("Invalid data format", data.get("error", ""))
+        self.mock_save_history.assert_not_called()
+
+    def test_import_history_malformed_json_syntax(self):
+        """Malformed JSON syntax must return 400 with a descriptive error."""
+        file_data = {"file": (BytesIO(b'{"broken": [}'), "broken.json")}
+        resp = self.client.post(
+            "/history/import_history",
+            data=file_data,
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn("Invalid JSON format", data.get("error", ""))
+        self.mock_save_history.assert_not_called()
+
+    def test_import_history_non_utf8_csv(self):
+        """Non-UTF-8 CSV content must return 400 with an encoding error."""
+        file_data = {"file": (BytesIO(b"\xff\xfe\x00\x00"), "invalid.csv")}
+        resp = self.client.post(
+            "/history/import_history",
+            data=file_data,
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn("File encoding error", data.get("error", ""))
+        self.mock_save_history.assert_not_called()
+
+    def test_import_history_invalid_record_entry(self):
+        """JSON list containing non-dict items must return 400."""
+        file_data = {"file": (BytesIO(b'["string-not-dict"]'), "history.json")}
+        resp = self.client.post(
+            "/history/import_history",
+            data=file_data,
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn("Invalid record format", data.get("error", ""))
+        self.mock_save_history.assert_not_called()
 
     def test_import_history_json_exceeds_max_limit(self):
         """JSON with > 10,000 records must return 400 to prevent DoS."""
@@ -542,6 +590,7 @@ class TestImportHistory(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
         data = resp.get_json()
         self.assertIn("exceeds maximum limit", data.get("error", ""))
+        self.mock_save_history.assert_not_called()
 
     def test_import_history_csv_exceeds_max_limit(self):
         """CSV with > 10,000 records must return 400 to prevent DoS."""
@@ -555,10 +604,33 @@ class TestImportHistory(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
         data = resp.get_json()
         self.assertIn("exceeds maximum limit", data.get("error", ""))
+        self.mock_save_history.assert_not_called()
+
+    def test_import_history_exact_max_boundary(self):
+        """Exact boundary of 10,000 records must succeed."""
+        records = [{"action": "run", "playbook": "test.yml", "output": "ok", "time": "2026-09-17"}] * 10000
+        file_data = {"file": (BytesIO(json.dumps(records).encode("utf-8")), "boundary.json")}
+        resp = self.client.post(
+            "/history/import_history",
+            data=file_data,
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data.get("status"), "ok")
+        self.mock_save_history.assert_called_once()
+        saved_records = self.mock_save_history.call_args[0][0]
+        self.assertEqual(len(saved_records), 10000)
 
     def test_import_history_json_within_limit(self):
-        """Valid JSON within record limit must succeed."""
-        records = [{"action": "run", "playbook": "test.yml", "output": "ok", "time": "2026-09-17"}]
+        """Valid JSON within record limit must succeed and sanitize fields."""
+        records = [{
+            "action": "run",
+            "playbook": "test.yml",
+            "output": "ok",
+            "time": "2026-09-17",
+            "extra_dangerous_key": "should_be_stripped"
+        }]
         file_data = {"file": (BytesIO(json.dumps(records).encode("utf-8")), "valid.json")}
         resp = self.client.post(
             "/history/import_history",
@@ -568,6 +640,12 @@ class TestImportHistory(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertEqual(data.get("status"), "ok")
+        self.mock_save_history.assert_called_once_with([{
+            "action": "run",
+            "playbook": "test.yml",
+            "output": "ok",
+            "time": "2026-09-17"
+        }])
 
     def test_import_history_csv_within_limit(self):
         """Valid CSV within record limit must succeed."""
@@ -581,6 +659,24 @@ class TestImportHistory(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertEqual(data.get("status"), "ok")
+        self.mock_save_history.assert_called_once_with([{
+            "action": "run",
+            "playbook": "test.yml",
+            "output": "ok",
+            "time": "2026-09-17"
+        }])
+
+    def test_import_history_case_insensitive_extension(self):
+        """Uppercase .JSON and .CSV extensions must be accepted."""
+        records = [{"action": "run", "playbook": "test.yml", "output": "ok", "time": "2026-09-17"}]
+        file_data = {"file": (BytesIO(json.dumps(records).encode("utf-8")), "CAPS.JSON")}
+        resp = self.client.post(
+            "/history/import_history",
+            data=file_data,
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.mock_save_history.assert_called_once()
 
 
 if __name__ == "__main__":
