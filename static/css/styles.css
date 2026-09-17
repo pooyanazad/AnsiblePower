@@ -469,3 +469,111 @@ h1, h2, h3, h4, h5, h6 {
 .dark .history-toggle-btn:hover {
     color: #90cdf4;
 }
+
+/* ── Task 48: Improved active sidebar link ───────────────────────────────── */
+.sidebar a.sidebar-active {
+    background: linear-gradient(90deg, #e3f2fd 0%, #f0f7ff 100%);
+    border-left: 3px solid #007bff;
+    color: #007bff;
+    font-weight: 700;
+}
+
+.dark .sidebar a.sidebar-active {
+    background: linear-gradient(90deg, rgba(99, 179, 237, 0.15) 0%, rgba(99, 179, 237, 0.05) 100%);
+    border-left: 3px solid #63b3ed;
+    color: #63b3ed;
+    font-weight: 700;
+}
+
+/* ── Task 45: Empty states ───────────────────────────────────────────────── */
+.ap-empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #6c757d;
+}
+
+.ap-empty-state-icon {
+    font-size: 52px;
+    margin-bottom: 20px;
+    opacity: 0.45;
+    color: #007bff;
+}
+
+.ap-empty-state h4 {
+    color: #495057;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.ap-empty-state p {
+    font-size: 15px;
+    max-width: 480px;
+    margin: 0 auto;
+    color: #6c757d !important;
+}
+
+.ap-empty-state a {
+    color: #007bff;
+    font-weight: 500;
+}
+
+.dark .ap-empty-state {
+    color: #a0aec0;
+}
+
+.dark .ap-empty-state-icon {
+    color: #63b3ed;
+}
+
+.dark .ap-empty-state h4 {
+    color: #e2e8f0;
+}
+
+.dark .ap-empty-state p {
+    color: #a0aec0 !important;
+}
+
+.dark .ap-empty-state a {
+    color: #63b3ed;
+}
+
+/* ── Task 47: Footer ─────────────────────────────────────────────────────── */
+.ap-footer {
+    text-align: center;
+    padding: 16px 20px;
+    font-size: 13px;
+    color: #6c757d;
+    border-top: 1px solid #dee2e6;
+    margin-top: 40px;
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+.ap-footer a {
+    color: #007bff;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.ap-footer a:hover {
+    color: #0056b3;
+    text-decoration: underline;
+}
+
+.ap-footer-sep {
+    margin: 0 8px;
+    opacity: 0.5;
+}
+
+.dark .ap-footer {
+    color: #a0aec0;
+    border-top-color: #4a5568;
+}
+
+.dark .ap-footer a {
+    color: #63b3ed;
+}
+
+.dark .ap-footer a:hover {
+    color: #90cdf4;
+}

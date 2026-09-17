@@ -24,6 +24,21 @@
     </div>
     
 
+    {% elif playbooks|length == 0 %}
+    <!-- task 45: empty state — no playbooks in the configured directory -->
+    <div class="ap-empty-state">
+        <div class="ap-empty-state-icon">
+            <i class="fas fa-folder-open"></i>
+        </div>
+        <h4>No playbooks found</h4>
+        <p>
+            No <code>.yml</code> or <code>.yaml</code> files were found in
+            <strong>{{ playbooks_dir }}</strong>.<br>
+            Add playbooks to that directory, or
+            <a href="{{ url_for('settings.settings') }}">configure a different directory in Settings →</a>
+        </p>
+    </div>
+
     {% else %}
     <div class="mb-3">
         <input type="text" id="playbook-search" class="form-control"
