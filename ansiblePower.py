@@ -3,38 +3,44 @@
 import os
 import re
 import json
-import sqlite3
 import shutil
 import subprocess
 import psutil
 import csv
-import logging
-import logging.handlers
 from datetime import datetime
 from io import StringIO
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Response, Blueprint
 from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
-# =============================================================================
-# Configuration Variables
-# =============================================================================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-logger = logging.getLogger("ansiblePower")
-logger.setLevel(logging.INFO)
-_log_file = os.path.join(BASE_DIR, "logs/app.log")
-_log_dir = os.path.dirname(_log_file)
-if not os.path.exists(_log_dir):
-    os.makedirs(_log_dir)
-log_handler = logging.handlers.RotatingFileHandler(
-    _log_file, maxBytes=1_048_576, backupCount=3
+# ---------------------------------------------------------------------------
+# Import shared helpers from utils (task 50 — extract utils.py)
+# ---------------------------------------------------------------------------
+from utils import (
+    BASE_DIR,
+    CONFIG_FILE,
+    DEFAULT_PLAYBOOKS_DIR,
+    HOSTS_FILE,
+    HISTORY_FILE,
+    logger,
+    load_config,
+    save_config,
+    get_playbooks_dir,
+    get_hosts_file,
+    get_history_db_file,
+    get_history_db_connection,
+    init_history_db,
+    load_history,
+    save_history,
+    add_history_record,
 )
-log_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))
-logger.addHandler(log_handler)
-CONFIG_FILE = os.path.join(BASE_DIR, "data/config.json")
-DEFAULT_PLAYBOOKS_DIR = os.path.join(BASE_DIR, "playbooks")
-HOSTS_FILE = os.path.join(BASE_DIR, "data/hosts")
-HISTORY_FILE = os.path.join(BASE_DIR, "data/history.json")
+
+# Regex for safe playbook filenames — rejects spaces, slashes, special chars (closes #29)
+_PLAYBOOK_FILENAME_RE = re.compile(r'^[a-zA-Z0-9_.\-]+\.(?:yml|yaml)$')
+
+# Dangerous top-level paths forbidden as the playbooks directory (closes #18)
+_DANGEROUS_DIR_PREFIXES = ("/etc", "/proc", "/sys")
 
 # Resolve ansible-playbook: prefer the venv binary, then system PATH, then env override
 def _find_ansible_playbook():
@@ -58,37 +64,16 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(24).hex())
 
 csrf = CSRFProtect(app)
 
-def load_config():
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r") as f:
-            try:
-                return json.load(f)
-            except Exception as e:
-                logger.error("Error loading config: %s", e)
-                return {"playbooks_dir": DEFAULT_PLAYBOOKS_DIR}
-    return {"playbooks_dir": DEFAULT_PLAYBOOKS_DIR}
+# =============================================================================
+# Rate Limiting (task 49) — 60 req/min default; 5 req/min on run_playbook
+# =============================================================================
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["60 per minute"],
+    storage_uri="memory://",
+)
 
-def save_config(config):
-    try:
-        with open(CONFIG_FILE, "w") as f:
-            json.dump(config, f, indent=2)
-    except Exception as e:
-        logger.error("Error saving config: %s", e)
-
-def get_playbooks_dir():
-    config = load_config()
-    return config.get("playbooks_dir", DEFAULT_PLAYBOOKS_DIR)
-
-def get_hosts_file():
-    config = load_config()
-    return config.get("hosts_file", HOSTS_FILE)
-
-
-# Regex for safe playbook filenames — rejects spaces, slashes, special chars (closes #29)
-_PLAYBOOK_FILENAME_RE = re.compile(r'^[a-zA-Z0-9_.\-]+\.(?:yml|yaml)$')
-
-# Dangerous top-level paths forbidden as the playbooks directory (closes #18)
-_DANGEROUS_DIR_PREFIXES = ("/etc", "/proc", "/sys")
 
 def _validate_playbook_path(name):
     """Validate *name* and return ``(absolute_path, error_response)``.
@@ -125,125 +110,6 @@ def _validate_playbook_path(name):
         return None, (jsonify({"error": "Playbook does not exist"}), 404)
 
     return playbook_path, None
-
-def get_history_db_file():
-    """Return the SQLite database path for playbook history."""
-    return os.path.splitext(HISTORY_FILE)[0] + ".db"
-
-
-def get_history_db_connection():
-    """Create a SQLite connection for history storage."""
-    history_db_file = get_history_db_file()
-    history_dir = os.path.dirname(history_db_file)
-
-    if history_dir and not os.path.exists(history_dir):
-        os.makedirs(history_dir)
-
-    conn = sqlite3.connect(history_db_file)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def _history_records_to_rows(history):
-    """Convert history dictionaries to SQLite insert rows."""
-    return [
-        (
-            record.get("action", ""),
-            record.get("playbook", ""),
-            record.get("output", ""),
-            record.get("time", "")
-        )
-        for record in history
-        if isinstance(record, dict)
-    ]
-
-
-def init_history_db():
-    """Initialize SQLite history storage and migrate existing JSON history."""
-    try:
-        with get_history_db_connection() as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS playbook_runs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    action TEXT NOT NULL,
-                    playbook TEXT NOT NULL,
-                    output TEXT NOT NULL,
-                    time TEXT NOT NULL
-                )
-            """)
-
-            row_count = conn.execute(
-                "SELECT COUNT(*) FROM playbook_runs"
-            ).fetchone()[0]
-
-            if row_count == 0 and os.path.exists(HISTORY_FILE):
-                try:
-                    with open(HISTORY_FILE, "r") as f:
-                        history = json.load(f)
-
-                    if isinstance(history, list):
-                        conn.executemany("""
-                            INSERT INTO playbook_runs
-                            (action, playbook, output, time)
-                            VALUES (?, ?, ?, ?)
-                        """, _history_records_to_rows(history))
-                        logger.info("Migrated existing history.json records to SQLite")
-                except Exception as e:
-                    logger.error("Error migrating history.json to SQLite: %s", e)
-    except Exception as e:
-        logger.error("Error initializing history database: %s", e)
-
-
-def load_history():
-    """Load playbook run history from SQLite as a list of dictionaries."""
-    try:
-        init_history_db()
-
-        with get_history_db_connection() as conn:
-            rows = conn.execute("""
-                SELECT action, playbook, output, time
-                FROM playbook_runs
-                ORDER BY id ASC
-            """).fetchall()
-
-        return [dict(row) for row in rows]
-    except Exception as e:
-        logger.error("Error loading history from SQLite: %s", e)
-        return []
-
-
-def save_history(history):
-    """Replace playbook run history in SQLite with the provided records."""
-    try:
-        init_history_db()
-
-        with get_history_db_connection() as conn:
-            conn.execute("DELETE FROM playbook_runs")
-            conn.executemany("""
-                INSERT INTO playbook_runs (action, playbook, output, time)
-                VALUES (?, ?, ?, ?)
-            """, _history_records_to_rows(history))
-    except Exception as e:
-        logger.error("Error saving history to SQLite: %s", e)
-
-
-def add_history_record(record):
-    """Insert a single playbook run history record into SQLite."""
-    try:
-        init_history_db()
-
-        with get_history_db_connection() as conn:
-            conn.execute("""
-                INSERT INTO playbook_runs (action, playbook, output, time)
-                VALUES (?, ?, ?, ?)
-            """, (
-                record.get("action", ""),
-                record.get("playbook", ""),
-                record.get("output", ""),
-                record.get("time", "")
-            ))
-    except Exception as e:
-        logger.error("Error adding history record to SQLite: %s", e)
 
 # =============================================================================
 # Flask App Setup
@@ -288,6 +154,7 @@ def homepage():
                            error=error, prompt_for_dir=prompt_for_dir, playbooks_dir=playbooks_dir)
 
 @main_bp.route("/run_playbook", methods=["POST"])
+@limiter.limit("5 per minute")
 def run_playbook():
     playbook_name = request.form.get("playbook")
     if not playbook_name:
@@ -621,4 +488,3 @@ if __name__ == "__main__":
     except Exception as e:
         logger.exception("Error starting application")
         raise
-

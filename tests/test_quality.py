@@ -9,6 +9,7 @@ import shutil
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import ansiblePower
+import utils
 
 
 class TestFlaskRoutes(unittest.TestCase):
@@ -38,19 +39,19 @@ class TestFlaskRoutes(unittest.TestCase):
         with open(os.path.join(self.playbooks_dir, "test.yml"), "w") as f:
             f.write("---\n- name: Test\n  hosts: all\n  tasks:\n    - debug: msg='hello'\n")
 
-        # Patch module-level constants
-        self.original_config = ansiblePower.CONFIG_FILE
-        self.original_history = ansiblePower.HISTORY_FILE
-        ansiblePower.CONFIG_FILE = self.config_file
-        ansiblePower.HISTORY_FILE = self.history_file
+        # Patch module-level constants (now live in utils — task 50)
+        self.original_config = utils.CONFIG_FILE
+        self.original_history = utils.HISTORY_FILE
+        utils.CONFIG_FILE = self.config_file
+        utils.HISTORY_FILE = self.history_file
 
         ansiblePower.app.config["TESTING"] = True
         ansiblePower.app.config["WTF_CSRF_ENABLED"] = False
         self.client = ansiblePower.app.test_client()
 
     def tearDown(self):
-        ansiblePower.CONFIG_FILE = self.original_config
-        ansiblePower.HISTORY_FILE = self.original_history
+        utils.CONFIG_FILE = self.original_config
+        utils.HISTORY_FILE = self.original_history
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_homepage_returns_200(self):

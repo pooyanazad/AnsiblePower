@@ -7,6 +7,7 @@ from unittest.mock import patch, mock_open
 # Add parent directory to path to import ansiblePower
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import utils
 from ansiblePower import (
     get_history_db_file,
     load_config,
@@ -25,11 +26,11 @@ class TestConfigAndHistory(unittest.TestCase):
         self.test_history_db_file = "test_history.db"
         self.default_playbooks_dir = "/path/to/default/playbooks"
 
-        # Patch the constants in the original module
-        patcher_config = patch("ansiblePower.CONFIG_FILE", self.test_config_file)
-        patcher_history = patch("ansiblePower.HISTORY_FILE", self.test_history_file)
+        # Patch the constants in utils (task 50 moved them there)
+        patcher_config = patch("utils.CONFIG_FILE", self.test_config_file)
+        patcher_history = patch("utils.HISTORY_FILE", self.test_history_file)
         patcher_default_dir = patch(
-            "ansiblePower.DEFAULT_PLAYBOOKS_DIR",
+            "utils.DEFAULT_PLAYBOOKS_DIR",
             self.default_playbooks_dir,
         )
 
@@ -87,7 +88,7 @@ class TestConfigAndHistory(unittest.TestCase):
 
         self.assertEqual(loaded_config, config_data)
 
-    @patch("ansiblePower.open", new_callable=mock_open)
+    @patch("utils.open", new_callable=mock_open)
     def test_save_config_write_error(self, mock_file):
         mock_file.side_effect = IOError("Permission denied")
         config_data = {"playbooks_dir": "/new/path"}
@@ -139,7 +140,7 @@ class TestConfigAndHistory(unittest.TestCase):
         self.assertTrue(os.path.exists(self.test_history_db_file))
         self.assertEqual(load_history(), history_data)
 
-    @patch("ansiblePower.sqlite3.connect")
+    @patch("utils.sqlite3.connect")
     def test_save_history_write_error(self, mock_connect):
         mock_connect.side_effect = OSError("Disk full")
         history_data = [{"action": "save", "playbook": "fail.yml"}]
@@ -277,14 +278,18 @@ class TestRunPlaybookValid(unittest.TestCase):
                 "hosts_file": os.path.join(self._tmp, "hosts"),
             }, fh)
 
-        self._config_patcher  = patch("ansiblePower.CONFIG_FILE",  self._config_file)
-        self._history_patcher = patch("ansiblePower.HISTORY_FILE", self._history_file)
+        self._config_patcher  = patch("utils.CONFIG_FILE",  self._config_file)
+        self._history_patcher = patch("utils.HISTORY_FILE", self._history_file)
+        # Also disable rate limiter so test requests are not throttled (task 49)
+        self._limiter_patcher = patch("ansiblePower.limiter.enabled", False)
         self._config_patcher.start()
         self._history_patcher.start()
+        self._limiter_patcher.start()
 
     def tearDown(self):
         self._config_patcher.stop()
         self._history_patcher.stop()
+        self._limiter_patcher.stop()
         import shutil
         shutil.rmtree(self._tmp, ignore_errors=True)
 
@@ -344,14 +349,17 @@ class TestRunPlaybookFailure(unittest.TestCase):
                 "hosts_file": os.path.join(self._tmp, "hosts"),
             }, fh)
 
-        self._config_patcher  = patch("ansiblePower.CONFIG_FILE",  self._config_file)
-        self._history_patcher = patch("ansiblePower.HISTORY_FILE", self._history_file)
+        self._config_patcher  = patch("utils.CONFIG_FILE",  self._config_file)
+        self._history_patcher = patch("utils.HISTORY_FILE", self._history_file)
+        self._limiter_patcher = patch("ansiblePower.limiter.enabled", False)
         self._config_patcher.start()
         self._history_patcher.start()
+        self._limiter_patcher.start()
 
     def tearDown(self):
         self._config_patcher.stop()
         self._history_patcher.stop()
+        self._limiter_patcher.stop()
         import shutil
         shutil.rmtree(self._tmp, ignore_errors=True)
 
@@ -407,14 +415,17 @@ class TestRunPlaybookTimeout(unittest.TestCase):
                 "hosts_file": os.path.join(self._tmp, "hosts"),
             }, fh)
 
-        self._config_patcher  = patch("ansiblePower.CONFIG_FILE",  self._config_file)
-        self._history_patcher = patch("ansiblePower.HISTORY_FILE", self._history_file)
+        self._config_patcher  = patch("utils.CONFIG_FILE",  self._config_file)
+        self._history_patcher = patch("utils.HISTORY_FILE", self._history_file)
+        self._limiter_patcher = patch("ansiblePower.limiter.enabled", False)
         self._config_patcher.start()
         self._history_patcher.start()
+        self._limiter_patcher.start()
 
     def tearDown(self):
         self._config_patcher.stop()
         self._history_patcher.stop()
+        self._limiter_patcher.stop()
         import shutil
         shutil.rmtree(self._tmp, ignore_errors=True)
 

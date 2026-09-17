@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     import ansiblePower
+    import utils
 except ImportError as e:
     print(f"Error importing ansiblePower: {e}")
     sys.exit(1)
@@ -50,13 +51,13 @@ class SmokeTestAnsiblePower(unittest.TestCase):
         with open(self.history_file, 'w') as f:
             json.dump([], f)
         
-        # Mock the file paths in ansiblePower
-        self.original_config_file = getattr(ansiblePower, 'CONFIG_FILE', None)
-        self.original_history_file = getattr(ansiblePower, 'HISTORY_FILE', None)
-        
-        ansiblePower.CONFIG_FILE = self.config_file
-        ansiblePower.HISTORY_FILE = self.history_file
-        
+        # Mock the file paths in utils (task 50 moved them there)
+        self.original_config_file = utils.CONFIG_FILE
+        self.original_history_file = utils.HISTORY_FILE
+
+        utils.CONFIG_FILE = self.config_file
+        utils.HISTORY_FILE = self.history_file
+
         # Create Flask test client
         ansiblePower.app.config['TESTING'] = True
         ansiblePower.app.config['WTF_CSRF_ENABLED'] = False
@@ -65,11 +66,9 @@ class SmokeTestAnsiblePower(unittest.TestCase):
     def tearDown(self):
         """Clean up after each test method."""
         # Restore original file paths
-        if self.original_config_file:
-            ansiblePower.CONFIG_FILE = self.original_config_file
-        if self.original_history_file:
-            ansiblePower.HISTORY_FILE = self.original_history_file
-        
+        utils.CONFIG_FILE = self.original_config_file
+        utils.HISTORY_FILE = self.original_history_file
+
         # Clean up temporary files
         import shutil
         shutil.rmtree(self.test_dir, ignore_errors=True)

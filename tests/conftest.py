@@ -18,6 +18,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import ansiblePower  # noqa: E402  (must come after sys.path manipulation)
+import utils  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -80,8 +81,8 @@ def patched_paths(tmp_data_dir, monkeypatch):
 
     Restores original values automatically via monkeypatch when the test ends.
     """
-    monkeypatch.setattr(ansiblePower, "CONFIG_FILE", tmp_data_dir["config_file"])
-    monkeypatch.setattr(ansiblePower, "HISTORY_FILE", tmp_data_dir["history_file"])
+    monkeypatch.setattr(utils, "CONFIG_FILE", tmp_data_dir["config_file"])
+    monkeypatch.setattr(utils, "HISTORY_FILE", tmp_data_dir["history_file"])
     return tmp_data_dir
 
 
