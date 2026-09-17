@@ -22,6 +22,7 @@ CONFIG_FILE = os.path.join(BASE_DIR, "data/config.json")
 DEFAULT_PLAYBOOKS_DIR = os.path.join(BASE_DIR, "playbooks")
 HOSTS_FILE = os.path.join(BASE_DIR, "data/hosts")
 HISTORY_FILE = os.path.join(BASE_DIR, "data/history.json")
+MAX_IMPORT_HISTORY_RECORDS = 10_000
 
 # =============================================================================
 # Logger (shared across the package)

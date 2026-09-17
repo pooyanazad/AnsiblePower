@@ -2,6 +2,7 @@ import unittest
 import os
 import json
 import sys
+from io import BytesIO
 from unittest.mock import patch, mock_open
 
 # Add parent directory to path to import ansiblePower
@@ -474,6 +475,112 @@ class TestHealthEndpoint(unittest.TestCase):
         """GET /health must return application/json content-type."""
         resp = self.client.get("/health")
         self.assertIn("application/json", resp.content_type)
+
+
+class TestImportHistory(unittest.TestCase):
+    """Test POST /history/import_history validation and record limit (closes #23)."""
+
+    def setUp(self):
+        import ansiblePower
+        self.app = ansiblePower.app
+        self.app.config["TESTING"] = True
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.client = self.app.test_client()
+
+    def test_import_history_missing_file(self):
+        """Missing file field in multipart form data must return 400."""
+        resp = self.client.post("/history/import_history")
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertEqual(data.get("error"), "No file provided")
+
+    def test_import_history_empty_filename(self):
+        """Empty filename must return 400."""
+        file_data = {"file": (BytesIO(b""), "")}
+        resp = self.client.post(
+            "/history/import_history",
+            data=file_data,
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertEqual(data.get("error"), "Empty file name")
+
+    def test_import_history_unsupported_file_type(self):
+        """Non-JSON, non-CSV file must return 400."""
+        file_data = {"file": (BytesIO(b"content"), "history.txt")}
+        resp = self.client.post(
+            "/history/import_history",
+            data=file_data,
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn("Unsupported file type", data.get("error", ""))
+
+    def test_import_history_invalid_json_format(self):
+        """JSON payload that is not a list must return 400."""
+        file_data = {"file": (BytesIO(b'{"key": "value"}'), "history.json")}
+        resp = self.client.post(
+            "/history/import_history",
+            data=file_data,
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn("Invalid data format", data.get("error", ""))
+
+    def test_import_history_json_exceeds_max_limit(self):
+        """JSON with > 10,000 records must return 400 to prevent DoS."""
+        records = [{"action": "run", "playbook": "test.yml"}] * 10001
+        file_data = {"file": (BytesIO(json.dumps(records).encode("utf-8")), "large.json")}
+        resp = self.client.post(
+            "/history/import_history",
+            data=file_data,
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn("exceeds maximum limit", data.get("error", ""))
+
+    def test_import_history_csv_exceeds_max_limit(self):
+        """CSV with > 10,000 records must return 400 to prevent DoS."""
+        csv_content = "action,playbook,output,time\n" + ("run,test.yml,ok,2026-09-17\n" * 10001)
+        file_data = {"file": (BytesIO(csv_content.encode("utf-8")), "large.csv")}
+        resp = self.client.post(
+            "/history/import_history",
+            data=file_data,
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn("exceeds maximum limit", data.get("error", ""))
+
+    def test_import_history_json_within_limit(self):
+        """Valid JSON within record limit must succeed."""
+        records = [{"action": "run", "playbook": "test.yml", "output": "ok", "time": "2026-09-17"}]
+        file_data = {"file": (BytesIO(json.dumps(records).encode("utf-8")), "valid.json")}
+        resp = self.client.post(
+            "/history/import_history",
+            data=file_data,
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data.get("status"), "ok")
+
+    def test_import_history_csv_within_limit(self):
+        """Valid CSV within record limit must succeed."""
+        csv_content = "action,playbook,output,time\nrun,test.yml,ok,2026-09-17\n"
+        file_data = {"file": (BytesIO(csv_content.encode("utf-8")), "valid.csv")}
+        resp = self.client.post(
+            "/history/import_history",
+            data=file_data,
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data.get("status"), "ok")
 
 
 if __name__ == "__main__":
