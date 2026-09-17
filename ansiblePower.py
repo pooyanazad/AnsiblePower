@@ -330,7 +330,7 @@ def save_hosts():
         with open(hosts_file, "w") as f:
             f.write(new_content)
         logger.info("Hosts file saved successfully")
-        return jsonify({"status": "ok"})
+        return jsonify({"status": "ok", "message": "Hosts file saved successfully."})
     except Exception as e:
         logger.exception("Error saving hosts file")
         return jsonify({"error": "Error saving hosts file"}), 500
@@ -352,7 +352,7 @@ def clear_history():
     try:
         save_history([])
         logger.info("History cleared")
-        return jsonify({"status": "ok"})
+        return jsonify({"status": "ok", "message": "History cleared successfully."})
     except Exception as e:
         logger.exception("Error clearing history")
         return jsonify({"error": "Error clearing history"}), 500

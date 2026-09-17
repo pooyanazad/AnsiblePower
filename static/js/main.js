@@ -191,7 +191,7 @@ document.addEventListener("DOMContentLoaded", function(){
             .then(r => r.json())
             .then(data => {
                 if(data.status === "ok") {
-                    showToast("Hosts saved successfully.", "success");
+                    showToast(data.message || "Hosts saved successfully.", "success");
                 } else if(data.error){
                     showToast(data.error, "error");
                 }
@@ -252,8 +252,10 @@ document.addEventListener("DOMContentLoaded", function(){
             .then(r => r.json())
             .then(data => {
                 if(data.status === "ok") {
-                    showToast("History cleared.", "success");
+                    showToast(data.message || "History cleared.", "success");
                     setTimeout(() => location.reload(), 1000);
+                } else if(data.error) {
+                    showToast(data.error, "error");
                 }
             });
         });

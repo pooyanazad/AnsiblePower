@@ -125,5 +125,132 @@ class TestFlaskRoutes(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
 
 
+class TestStandardizedApiResponses(unittest.TestCase):
+    """Issue 51 — all mutating endpoints must return {"status":"ok","message":"..."} on success
+    and {"error":"..."} with a non-200 status on failure.
+    """
+
+    def setUp(self):
+        import ansiblePower
+        import utils as _utils
+
+        self.test_dir = tempfile.mkdtemp()
+        self.playbooks_dir = os.path.join(self.test_dir, "playbooks")
+        os.makedirs(self.playbooks_dir)
+        self.config_file = os.path.join(self.test_dir, "config.json")
+        self.hosts_file = os.path.join(self.test_dir, "hosts")
+        self.history_file = os.path.join(self.test_dir, "history.json")
+
+        with open(self.config_file, "w") as f:
+            json.dump({"playbooks_dir": self.playbooks_dir, "hosts_file": self.hosts_file}, f)
+        with open(self.hosts_file, "w") as f:
+            f.write("[test]\nlocalhost ansible_connection=local\n")
+        with open(self.history_file, "w") as f:
+            json.dump([], f)
+
+        self._orig_config  = _utils.CONFIG_FILE
+        self._orig_history = _utils.HISTORY_FILE
+        _utils.CONFIG_FILE  = self.config_file
+        _utils.HISTORY_FILE = self.history_file
+        self._utils = _utils
+
+        ansiblePower.app.config["TESTING"] = True
+        ansiblePower.app.config["WTF_CSRF_ENABLED"] = False
+        self.client = ansiblePower.app.test_client()
+
+    def tearDown(self):
+        self._utils.CONFIG_FILE  = self._orig_config
+        self._utils.HISTORY_FILE = self._orig_history
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+
+    def _assert_success(self, response, expected_status=200):
+        """Assert status code, 'status':'ok', and a non-empty 'message' field."""
+        self.assertEqual(response.status_code, expected_status)
+        data = json.loads(response.data)
+        self.assertEqual(data.get("status"), "ok", msg=f"Expected status=ok, got: {data}")
+        self.assertIn("message", data, msg=f"Missing 'message' key in: {data}")
+        self.assertTrue(data["message"], msg="'message' must not be empty")
+
+    def _assert_error(self, response, expected_status):
+        """Assert non-2xx status code and an 'error' key in the body."""
+        self.assertEqual(response.status_code, expected_status)
+        data = json.loads(response.data)
+        self.assertIn("error", data, msg=f"Missing 'error' key in: {data}")
+        self.assertTrue(data["error"], msg="'error' must not be empty")
+
+    # --- update_playbooks_dir ---
+
+    def test_update_playbooks_dir_success_schema(self):
+        """Path must be inside BASE_DIR — use the real app playbooks dir."""
+        import ansiblePower
+        safe_path = ansiblePower.DEFAULT_PLAYBOOKS_DIR
+        resp = self.client.post(
+            "/settings/update_playbooks_dir",
+            data={"playbooks_dir": safe_path},
+        )
+        self._assert_success(resp)
+
+    def test_update_playbooks_dir_empty_returns_error(self):
+        resp = self.client.post("/settings/update_playbooks_dir", data={"playbooks_dir": ""})
+        self._assert_error(resp, 400)
+
+    # --- update_hosts_file ---
+
+    def test_update_hosts_file_success_schema(self):
+        """Hosts file must be inside BASE_DIR/data — use the real app hosts file."""
+        import ansiblePower
+        safe_hosts = ansiblePower.HOSTS_FILE
+        resp = self.client.post(
+            "/settings/update_hosts_file",
+            data={"hosts_file": safe_hosts},
+        )
+        self._assert_success(resp)
+
+    def test_update_hosts_file_empty_returns_error(self):
+        resp = self.client.post("/settings/update_hosts_file", data={"hosts_file": ""})
+        self._assert_error(resp, 400)
+
+    # --- save_hosts ---
+
+    def test_save_hosts_success_schema(self):
+        resp = self.client.post(
+            "/settings/save_hosts",
+            data={"content": "# test hosts\n"},
+        )
+        self._assert_success(resp)
+
+    def test_save_hosts_missing_file_returns_error(self):
+        """If hosts file is deleted, save_hosts must return {"error": ...} with 404."""
+        os.remove(self.hosts_file)
+        resp = self.client.post("/settings/save_hosts", data={"content": "x"})
+        self._assert_error(resp, 404)
+
+    # --- clear_history ---
+
+    def test_clear_history_success_schema(self):
+        resp = self.client.post("/settings/clear_history")
+        self._assert_success(resp)
+
+    # --- error shape: non-2xx responses must carry "error" key, never "status":"ok" ---
+
+    def test_error_responses_never_contain_status_ok(self):
+        """A sampling of error paths must not accidentally return status=ok."""
+        error_cases = [
+            ("/settings/update_playbooks_dir", {"playbooks_dir": ""}, 400),
+            ("/settings/update_hosts_file",    {"hosts_file": ""},    400),
+            ("/run_playbook",                  {"playbook": ""},      400),
+            ("/show_playbook",                 {"playbook": ""},      400),
+        ]
+        for url, data, expected_status in error_cases:
+            resp = self.client.post(url, data=data)
+            self.assertEqual(resp.status_code, expected_status, msg=f"URL: {url}")
+            body = json.loads(resp.data)
+            self.assertNotEqual(
+                body.get("status"), "ok",
+                msg=f"Error response for {url} must not have status=ok: {body}",
+            )
+            self.assertIn("error", body, msg=f"Error response for {url} must have 'error' key: {body}")
+
+
 if __name__ == "__main__":
     unittest.main()
