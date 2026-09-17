@@ -5,9 +5,21 @@
 <div class="mt-4">
     <h1>Execution History</h1>
     {% if history|length == 0 %}
-        <p>No history available.</p>
+        <!-- task 45: empty state with icon + message -->
+        <div class="ap-empty-state">
+            <div class="ap-empty-state-icon">
+                <i class="fas fa-history"></i>
+            </div>
+            <h4>No history yet</h4>
+            <p>Run a playbook from the <a href="{{ url_for('main.homepage') }}">Home page</a> to see execution history here.</p>
+        </div>
     {% else %}
-    <table class="table table-striped">
+    <!-- task 44: search box for history — JS hides non-matching rows -->
+    <div class="mb-3">
+        <input type="text" id="history-search" class="form-control"
+               placeholder="🔍 Filter by playbook name or output…" autocomplete="off">
+    </div>
+    <table class="table table-striped" id="history-table">
         <thead>
             <tr>
                 <th>Time</th>
@@ -16,9 +28,9 @@
                 <th>Output</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="history-tbody">
             {% for record in history|reverse %}
-            <tr>
+            <tr class="history-row">
                 <td>{{ record.time }}</td>
                 <td>{{ record.playbook }}</td>
                 <td>{{ record.action }}</td>
@@ -34,6 +46,14 @@
             {% endfor %}
         </tbody>
     </table>
+    <!-- task 44: shown when no rows match the search query -->
+    <div id="history-no-match" class="ap-empty-state" style="display:none;">
+        <div class="ap-empty-state-icon">
+            <i class="fas fa-search"></i>
+        </div>
+        <h4>No results found</h4>
+        <p>No history entries match your search. Try a different term.</p>
+    </div>
     {% endif %}
 
     <div class="mt-4">

@@ -378,4 +378,23 @@ document.addEventListener("DOMContentLoaded", function(){
             });
         }
     });
+
+    // Task 44: History search — filter table rows by playbook name or output text
+    var historySearch = document.getElementById('history-search');
+    if (historySearch) {
+        historySearch.addEventListener('input', function() {
+            var query = this.value.toLowerCase().trim();
+            var rows = document.querySelectorAll('#history-tbody .history-row');
+            var anyVisible = false;
+            rows.forEach(function(row) {
+                var playbook = (row.cells[1] ? row.cells[1].textContent : '').toLowerCase();
+                var output   = (row.cells[3] ? row.cells[3].textContent : '').toLowerCase();
+                var match = !query || playbook.includes(query) || output.includes(query);
+                row.style.display = match ? '' : 'none';
+                if (match) anyVisible = true;
+            });
+            var noMatch = document.getElementById('history-no-match');
+            if (noMatch) noMatch.style.display = (rows.length > 0 && !anyVisible) ? '' : 'none';
+        });
+    }
 });
