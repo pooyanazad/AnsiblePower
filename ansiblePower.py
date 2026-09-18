@@ -23,6 +23,7 @@ from utils import (
     DEFAULT_PLAYBOOKS_DIR,
     HOSTS_FILE,
     HISTORY_FILE,
+    MAX_IMPORT_HISTORY_RECORDS,
     logger,
     load_config,
     save_config,
@@ -393,20 +394,35 @@ def import_history():
     if file.filename == "":
         return jsonify({"error": "Empty file name"}), 400
     try:
-        if file.filename.endswith(".json"):
-            data = json.load(file)
-        elif file.filename.endswith(".csv"):
+        filename_lower = file.filename.lower()
+        if filename_lower.endswith(".json"):
+            try:
+                data = json.load(file)
+            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                return jsonify({"error": f"Invalid JSON format: {e}"}), 400
+        elif filename_lower.endswith(".csv"):
             data = []
-            stream = StringIO(file.stream.read().decode("UTF8"), newline=None)
+            try:
+                raw_bytes = file.stream.read()
+                text = raw_bytes.decode("utf-8")
+            except UnicodeDecodeError as e:
+                return jsonify({"error": f"File encoding error: must be UTF-8 ({e})"}), 400
+            stream = StringIO(text, newline=None)
             csv_input = csv.DictReader(stream)
             for row in csv_input:
                 data.append(row)
+                if len(data) > MAX_IMPORT_HISTORY_RECORDS:
+                    return jsonify({"error": f"Import exceeds maximum limit of {MAX_IMPORT_HISTORY_RECORDS} records."}), 400
         else:
             return jsonify({"error": "Unsupported file type. Only .json and .csv allowed."}), 400
 
         # Validate imported data structure
         if not isinstance(data, list):
             return jsonify({"error": "Invalid data format: expected a list of records."}), 400
+
+        # Security (closes #23): cap imported history records to prevent DoS / OOM
+        if len(data) > MAX_IMPORT_HISTORY_RECORDS:
+            return jsonify({"error": f"Import exceeds maximum limit of {MAX_IMPORT_HISTORY_RECORDS} records."}), 400
         valid_keys = {"action", "playbook", "output", "time"}
         for record in data:
             if not isinstance(record, dict):
