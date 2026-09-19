@@ -455,18 +455,40 @@ def set_security_headers(response):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
+def _wants_json():
+    """Return True when the client prefers a JSON response."""
+    if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return True
+    best = request.accept_mimetypes.best_match(["application/json", "text/html"])
+    return best == "application/json" or request.path.startswith(("/run_playbook", "/show_playbook", "/settings/"))
+
+@app.errorhandler(400)
+def bad_request_error(error):
+    """Return JSON for API clients, HTML for browsers."""
+    if _wants_json():
+        return jsonify({"error": error.description or "Bad request"}), 400
+    return render_template("errors/400.html"), 400
+
 @app.errorhandler(404)
 def not_found_error(error):
-    """Render a user-friendly 404 error page."""
+    """Return JSON for API clients, HTML for browsers."""
+    if _wants_json():
+        return jsonify({"error": "Not found"}), 404
     return render_template("errors/404.html"), 404
 
+@app.errorhandler(429)
+def too_many_requests_error(error):
+    """Return JSON for rate-limited requests."""
+    return jsonify({"error": "Too many requests. Please try again later."}), 429
 
 @app.errorhandler(500)
 def internal_server_error(error):
-    """Render a user-friendly 500 error page."""
+    """Return JSON for API clients, HTML for browsers."""
     logger.exception("Unhandled server error: %s", error)
+    if _wants_json():
+        return jsonify({"error": "Internal server error"}), 500
     return render_template("errors/500.html"), 500
-
+    
 # =============================================================================
 # Ensure required directories and default files exist.
 # Called at module level so it runs under both `python ansiblePower.py` and
