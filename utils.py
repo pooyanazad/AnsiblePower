@@ -13,6 +13,8 @@ import shutil
 import sqlite3
 from io import StringIO
 
+from filelock import FileLock
+
 # =============================================================================
 # Directory / file constants
 # =============================================================================
@@ -48,25 +50,47 @@ logger.addHandler(_log_handler)
 # Config helpers
 # =============================================================================
 
+def _config_lock():
+    """Return a process-safe lock for the config file."""
+    config_dir = os.path.dirname(CONFIG_FILE)
+    if config_dir and not os.path.exists(config_dir):
+        os.makedirs(config_dir, exist_ok=True)
+    return FileLock(f"{CONFIG_FILE}.lock")
+
+
 def load_config():
     """Load and return the application configuration dictionary."""
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r") as f:
+    lock = _config_lock()
+    with lock:
+        if os.path.exists(CONFIG_FILE):
             try:
-                return json.load(f)
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                    return json.load(f)
             except Exception as e:
                 logger.error("Error loading config: %s", e)
                 return {"playbooks_dir": DEFAULT_PLAYBOOKS_DIR}
-    return {"playbooks_dir": DEFAULT_PLAYBOOKS_DIR}
+        return {"playbooks_dir": DEFAULT_PLAYBOOKS_DIR}
 
 
 def save_config(config):
-    """Persist *config* dictionary to disk."""
-    try:
-        with open(CONFIG_FILE, "w") as f:
-            json.dump(config, f, indent=2)
-    except Exception as e:
-        logger.error("Error saving config: %s", e)
+    """Persist *config* dictionary to disk using a lock and atomic replace."""
+    lock = _config_lock()
+    with lock:
+        config_dir = os.path.dirname(CONFIG_FILE)
+        if config_dir and not os.path.exists(config_dir):
+            os.makedirs(config_dir, exist_ok=True)
+        tmp_path = f"{CONFIG_FILE}.tmp"
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(config, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, CONFIG_FILE)
+        except Exception as e:
+            logger.error("Error saving config: %s", e)
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
 
 
 def get_playbooks_dir():
@@ -130,14 +154,13 @@ def init_history_db():
                     time TEXT NOT NULL
                 )
             """)
-
             row_count = conn.execute(
                 "SELECT COUNT(*) FROM playbook_runs"
             ).fetchone()[0]
 
             if row_count == 0 and os.path.exists(HISTORY_FILE):
                 try:
-                    with open(HISTORY_FILE, "r") as f:
+                    with open(HISTORY_FILE, "r", encoding="utf-8") as f:
                         history = json.load(f)
 
                     if isinstance(history, list):
