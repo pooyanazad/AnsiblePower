@@ -9,6 +9,7 @@ from unittest.mock import patch, mock_open
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import utils
+import ansiblePower
 from ansiblePower import (
     get_history_db_file,
     load_config,
@@ -158,7 +159,6 @@ class TestUpdatePlaybooksDirSecurity(unittest.TestCase):
     """Tests for the path traversal fix in update_playbooks_dir (issue 15.1)."""
 
     def setUp(self):
-        import ansiblePower
         self.app = ansiblePower.app
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
@@ -184,14 +184,12 @@ class TestUpdatePlaybooksDirSecurity(unittest.TestCase):
 
     def test_parent_traversal_rejected(self):
         """A path that escapes BASE_DIR via '..' must be rejected."""
-        import ansiblePower
         outside = os.path.dirname(ansiblePower.BASE_DIR)
         resp = self._post(outside)
         self.assertEqual(resp.status_code, 400)
 
     def test_valid_subdir_accepted(self):
         """A path strictly inside BASE_DIR must be accepted."""
-        import ansiblePower
         safe_path = os.path.join(ansiblePower.BASE_DIR, "playbooks")
         resp = self._post(safe_path)
         # 200 with status ok
@@ -209,7 +207,6 @@ class TestSecurityHeaders(unittest.TestCase):
     """Task 21 — verify security headers are present on every response."""
 
     def setUp(self):
-        import ansiblePower
         self.app = ansiblePower.app
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
@@ -253,7 +250,6 @@ class TestRunPlaybookValid(unittest.TestCase):
     """Test 27 — run_playbook success: mock subprocess, verify output + history saved."""
 
     def setUp(self):
-        import ansiblePower
         self.app = ansiblePower.app
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
@@ -324,7 +320,6 @@ class TestRunPlaybookFailure(unittest.TestCase):
     """Test 28 — run_playbook CalledProcessError: error output is returned."""
 
     def setUp(self):
-        import ansiblePower
         self.app = ansiblePower.app
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
@@ -391,7 +386,6 @@ class TestRunPlaybookTimeout(unittest.TestCase):
     """Test 29 — run_playbook TimeoutExpired: friendly error message returned."""
 
     def setUp(self):
-        import ansiblePower
         self.app = ansiblePower.app
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
@@ -453,7 +447,6 @@ class TestHealthEndpoint(unittest.TestCase):
     """Test 30 — GET /health returns HTTP 200 with {"status": "ok"}."""
 
     def setUp(self):
-        import ansiblePower
         self.app = ansiblePower.app
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
@@ -475,6 +468,70 @@ class TestHealthEndpoint(unittest.TestCase):
         """GET /health must return application/json content-type."""
         resp = self.client.get("/health")
         self.assertIn("application/json", resp.content_type)
+
+class TestStandardizedErrorResponses(unittest.TestCase):
+    """Issue #37 — all error responses must return {"error": "message"} JSON."""
+
+    def setUp(self):
+        self.app = ansiblePower.app
+        self.app.config["TESTING"] = True
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.client = self.app.test_client()
+
+    def _json_headers(self):
+        return {"Accept": "application/json"}
+
+    def test_404_returns_json_error(self):
+        resp = self.client.get("/nonexistent", headers=self._json_headers())
+        self.assertEqual(resp.status_code, 404)
+        data = resp.get_json()
+        self.assertIn("error", data)
+
+    def test_404_returns_html_for_browser(self):
+        resp = self.client.get("/nonexistent", headers={"Accept": "text/html"})
+        self.assertEqual(resp.status_code, 404)
+        self.assertIn(b"404", resp.data)
+        self.assertIn(b"Page not found", resp.data)
+
+    def test_429_returns_json_error(self):
+        """Rate-limited endpoint must return {"error": "..."}."""
+        # Temporarily enable rate limiter with a very low limit
+        original_enabled = ansiblePower.limiter.enabled
+        ansiblePower.limiter.enabled = True
+        try:
+            # Exhaust the 5/min limit on run_playbook
+            for _ in range(6):
+                resp = self.client.post(
+                    "/run_playbook",
+                    data={"playbook": "x.yml"},
+                    headers=self._json_headers(),
+                )
+            self.assertEqual(resp.status_code, 429)
+            data = resp.get_json()
+            self.assertIn("error", data)
+        finally:
+            ansiblePower.limiter.enabled = original_enabled
+            ansiblePower.limiter.reset()
+
+    def test_update_playbooks_dir_empty_returns_error_key(self):
+        resp = self.client.post(
+            "/settings/update_playbooks_dir",
+            data={"playbooks_dir": ""},
+            headers=self._json_headers(),
+        )
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn("error", data)
+
+    def test_update_hosts_file_empty_returns_error_key(self):
+        resp = self.client.post(
+            "/settings/update_hosts_file",
+            data={"hosts_file": ""},
+            headers=self._json_headers(),
+        )
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn("error", data)
 
 
 class TestImportHistory(unittest.TestCase):
@@ -681,3 +738,4 @@ class TestImportHistory(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
