@@ -4,6 +4,7 @@
 Extracted from ``ansiblePower.py`` to keep the main module focused on
 Flask routes and application wiring.
 """
+
 import csv
 import json
 import logging
@@ -11,13 +12,16 @@ import logging.handlers
 import os
 import shutil
 import sqlite3
+from contextlib import closing
 from io import StringIO
 
-from filelock import FileLock
+from filelock import FileLock, Timeout
+
 
 # =============================================================================
 # Directory / file constants
 # =============================================================================
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 CONFIG_FILE = os.path.join(BASE_DIR, "data/config.json")
@@ -25,24 +29,32 @@ DEFAULT_PLAYBOOKS_DIR = os.path.join(BASE_DIR, "playbooks")
 HOSTS_FILE = os.path.join(BASE_DIR, "data/hosts")
 HISTORY_FILE = os.path.join(BASE_DIR, "data/history.json")
 
+
 # =============================================================================
-# Logger (shared across the package)
+# Logger
 # =============================================================================
+
 logger = logging.getLogger("ansiblePower")
 logger.setLevel(logging.INFO)
 
 _log_file = os.path.join(BASE_DIR, "logs/app.log")
 _log_dir = os.path.dirname(_log_file)
+
 if not os.path.exists(_log_dir):
     os.makedirs(_log_dir)
 
 _log_handler = logging.handlers.RotatingFileHandler(
-    _log_file, maxBytes=1_048_576, backupCount=3
+    _log_file,
+    maxBytes=1_048_576,
+    backupCount=3,
 )
+
 _log_handler.setFormatter(
     logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
 )
-logger.addHandler(_log_handler)
+
+if not logger.handlers:
+    logger.addHandler(_log_handler)
 
 
 # =============================================================================
@@ -52,44 +64,61 @@ logger.addHandler(_log_handler)
 def _config_lock():
     """Return a process-safe lock for the config file."""
     config_dir = os.path.dirname(CONFIG_FILE)
+
     if config_dir and not os.path.exists(config_dir):
         os.makedirs(config_dir, exist_ok=True)
-    return FileLock(f"{CONFIG_FILE}.lock")
+
+    return FileLock(f"{CONFIG_FILE}.lock", timeout=5)
 
 
 def load_config():
     """Load and return the application configuration dictionary."""
-    lock = _config_lock()
-    with lock:
-        if os.path.exists(CONFIG_FILE):
-            try:
-                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception as e:
-                logger.error("Error loading config: %s", e)
-                return {"playbooks_dir": DEFAULT_PLAYBOOKS_DIR}
-        return {"playbooks_dir": DEFAULT_PLAYBOOKS_DIR}
+    try:
+        lock = _config_lock()
+
+        with lock:
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE, "r", encoding="utf-8") as file:
+                    return json.load(file)
+
+    except Timeout:
+        logger.error("Timed out waiting for config lock")
+    except Exception as error:
+        logger.error("Error loading config: %s", error)
+
+    return {
+        "playbooks_dir": DEFAULT_PLAYBOOKS_DIR,
+    }
 
 
 def save_config(config):
-    """Persist *config* dictionary to disk using a lock and atomic replace."""
-    lock = _config_lock()
-    with lock:
-        config_dir = os.path.dirname(CONFIG_FILE)
-        if config_dir and not os.path.exists(config_dir):
-            os.makedirs(config_dir, exist_ok=True)
-        tmp_path = f"{CONFIG_FILE}.tmp"
-        try:
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(tmp_path, CONFIG_FILE)
-        except Exception as e:
-            logger.error("Error saving config: %s", e)
-        finally:
-            if os.path.exists(tmp_path):
-                os.unlink(tmp_path)
+    """Persist config to disk using a lock and atomic replacement."""
+    temporary_path = f"{CONFIG_FILE}.tmp"
+
+    try:
+        lock = _config_lock()
+
+        with lock:
+            with open(temporary_path, "w", encoding="utf-8") as file:
+                json.dump(config, file, indent=2)
+                file.flush()
+                os.fsync(file.fileno())
+
+            os.replace(temporary_path, CONFIG_FILE)
+
+    except Timeout:
+        logger.error("Timed out waiting for config lock")
+    except Exception as error:
+        logger.error("Error saving config: %s", error)
+    finally:
+        if os.path.exists(temporary_path):
+            try:
+                os.unlink(temporary_path)
+            except OSError as error:
+                logger.error(
+                    "Error removing temporary config file: %s",
+                    error,
+                )
 
 
 def get_playbooks_dir():
@@ -105,7 +134,7 @@ def get_hosts_file():
 
 
 # =============================================================================
-# History helpers (SQLite-backed)
+# History helpers
 # =============================================================================
 
 def get_history_db_file():
@@ -119,15 +148,15 @@ def get_history_db_connection():
     history_dir = os.path.dirname(history_db_file)
 
     if history_dir and not os.path.exists(history_dir):
-        os.makedirs(history_dir)
+        os.makedirs(history_dir, exist_ok=True)
 
-    conn = sqlite3.connect(history_db_file)
-    conn.row_factory = sqlite3.Row
-    return conn
+    connection = sqlite3.connect(history_db_file)
+    connection.row_factory = sqlite3.Row
+    return connection
 
 
 def _history_records_to_rows(history):
-    """Convert history dicts to SQLite insert rows (4-tuples)."""
+    """Convert history dictionaries to SQLite insert rows."""
     return [
         (
             record.get("action", ""),
@@ -143,69 +172,98 @@ def _history_records_to_rows(history):
 def init_history_db():
     """Initialize SQLite history storage and migrate existing JSON history."""
     try:
-        with get_history_db_connection() as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS playbook_runs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    action TEXT NOT NULL,
-                    playbook TEXT NOT NULL,
-                    output TEXT NOT NULL,
-                    time TEXT NOT NULL
-                )
-            """)
-            row_count = conn.execute(
-                "SELECT COUNT(*) FROM playbook_runs"
-            ).fetchone()[0]
+        with closing(get_history_db_connection()) as connection:
+            with connection:
+                connection.execute("""
+                    CREATE TABLE IF NOT EXISTS playbook_runs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        action TEXT NOT NULL,
+                        playbook TEXT NOT NULL,
+                        output TEXT NOT NULL,
+                        time TEXT NOT NULL
+                    )
+                """)
 
-            if row_count == 0 and os.path.exists(HISTORY_FILE):
-                try:
-                    with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-                        history = json.load(f)
+                row_count = connection.execute(
+                    "SELECT COUNT(*) FROM playbook_runs"
+                ).fetchone()[0]
 
-                    if isinstance(history, list):
-                        conn.executemany("""
-                            INSERT INTO playbook_runs
-                            (action, playbook, output, time)
-                            VALUES (?, ?, ?, ?)
-                        """, _history_records_to_rows(history))
-                        logger.info("Migrated existing history.json records to SQLite")
-                except Exception as e:
-                    logger.error("Error migrating history.json to SQLite: %s", e)
-    except Exception as e:
-        logger.error("Error initializing history database: %s", e)
+                if row_count == 0 and os.path.exists(HISTORY_FILE):
+                    try:
+                        with open(
+                            HISTORY_FILE,
+                            "r",
+                            encoding="utf-8",
+                        ) as file:
+                            history = json.load(file)
+
+                        if isinstance(history, list):
+                            connection.executemany("""
+                                INSERT INTO playbook_runs
+                                (action, playbook, output, time)
+                                VALUES (?, ?, ?, ?)
+                            """, _history_records_to_rows(history))
+
+                            logger.info(
+                                "Migrated existing history.json records "
+                                "to SQLite"
+                            )
+
+                    except Exception as error:
+                        logger.error(
+                            "Error migrating history.json to SQLite: %s",
+                            error,
+                        )
+
+    except Exception as error:
+        logger.error(
+            "Error initializing history database: %s",
+            error,
+        )
 
 
 def load_history():
-    """Load playbook run history from SQLite as a list of dictionaries."""
+    """Load playbook run history from SQLite."""
     try:
         init_history_db()
 
-        with get_history_db_connection() as conn:
-            rows = conn.execute("""
+        with closing(get_history_db_connection()) as connection:
+            rows = connection.execute("""
                 SELECT action, playbook, output, time
                 FROM playbook_runs
                 ORDER BY id ASC
             """).fetchall()
 
         return [dict(row) for row in rows]
-    except Exception as e:
-        logger.error("Error loading history from SQLite: %s", e)
+
+    except Exception as error:
+        logger.error(
+            "Error loading history from SQLite: %s",
+            error,
+        )
         return []
 
 
 def save_history(history):
-    """Replace playbook run history in SQLite with the provided records."""
+    """Replace playbook run history in SQLite."""
     try:
         init_history_db()
 
-        with get_history_db_connection() as conn:
-            conn.execute("DELETE FROM playbook_runs")
-            conn.executemany("""
-                INSERT INTO playbook_runs (action, playbook, output, time)
-                VALUES (?, ?, ?, ?)
-            """, _history_records_to_rows(history))
-    except Exception as e:
-        logger.error("Error saving history to SQLite: %s", e)
+        with closing(get_history_db_connection()) as connection:
+            with connection:
+                connection.execute("DELETE FROM playbook_runs")
+
+                connection.executemany("""
+                    INSERT INTO playbook_runs
+                    (action, playbook, output, time)
+                    VALUES (?, ?, ?, ?)
+                """, _history_records_to_rows(history))
+
+    except Exception as error:
+        logger.error(
+            "Error saving history to SQLite: %s",
+            error,
+        )
 
 
 def add_history_record(record):
@@ -213,15 +271,21 @@ def add_history_record(record):
     try:
         init_history_db()
 
-        with get_history_db_connection() as conn:
-            conn.execute("""
-                INSERT INTO playbook_runs (action, playbook, output, time)
-                VALUES (?, ?, ?, ?)
-            """, (
-                record.get("action", ""),
-                record.get("playbook", ""),
-                record.get("output", ""),
-                record.get("time", ""),
-            ))
-    except Exception as e:
-        logger.error("Error adding history record to SQLite: %s", e)
+        with closing(get_history_db_connection()) as connection:
+            with connection:
+                connection.execute("""
+                    INSERT INTO playbook_runs
+                    (action, playbook, output, time)
+                    VALUES (?, ?, ?, ?)
+                """, (
+                    record.get("action", ""),
+                    record.get("playbook", ""),
+                    record.get("output", ""),
+                    record.get("time", ""),
+                ))
+
+    except Exception as error:
+        logger.error(
+            "Error adding history record to SQLite: %s",
+            error,
+        )

@@ -25,6 +25,7 @@ class TestConfigAndHistory(unittest.TestCase):
         self.test_history_file = "test_history.json"
         self.test_history_db_file = "test_history.db"
         self.default_playbooks_dir = "/path/to/default/playbooks"
+        self.test_config_lock_file = f"{self.test_config_file}.lock"
 
         # Patch the constants in utils (task 50 moved them there)
         patcher_config = patch("utils.CONFIG_FILE", self.test_config_file)
@@ -49,6 +50,8 @@ class TestConfigAndHistory(unittest.TestCase):
             os.remove(self.test_history_file)
         if os.path.exists(self.test_history_db_file):
             os.remove(self.test_history_db_file)
+        if os.path.exists(self.test_config_lock_file):
+            os.remove(self.test_config_lock_file)
 
     def tearDown(self):
         # Clean up test files after each test
@@ -58,6 +61,8 @@ class TestConfigAndHistory(unittest.TestCase):
             os.remove(self.test_history_file)
         if os.path.exists(self.test_history_db_file):
             os.remove(self.test_history_db_file)
+        if os.path.exists(self.test_config_lock_file):
+            os.remove(self.test_config_lock_file)
 
     # Test load_config
     def test_load_config_existing_valid(self):
@@ -87,6 +92,16 @@ class TestConfigAndHistory(unittest.TestCase):
             loaded_config = json.load(f)
 
         self.assertEqual(loaded_config, config_data)
+
+    def test_save_and_load_config_with_filelock(self):
+        config_data = {
+            "playbooks_dir": "/new/path",
+            "hosts_file": "/new/hosts",
+        }
+        save_config(config_data)
+        self.assertTrue(os.path.exists(self.test_config_file))
+        self.assertEqual(load_config(), config_data)
+        self.assertFalse(os.path.exists(f"{self.test_config_file}.tmp"))
 
     @patch("utils.open", new_callable=mock_open)
     def test_save_config_write_error(self, mock_file):
