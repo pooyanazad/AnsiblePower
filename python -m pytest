@@ -1,0 +1,104 @@
+[1mdiff --git a/requirements.txt b/requirements.txt[m
+[1mindex 10f876f..a46b326 100644[m
+[1m--- a/requirements.txt[m
+[1m+++ b/requirements.txt[m
+[36m@@ -3,3 +3,4 @@[m [mpsutil==5.9.6[m
+ gunicorn==21.2.0[m
+ Flask-WTF==1.2.2[m
+ Flask-Limiter==3.5.0[m
+[32m+[m[32mfilelock == 3.16.1[m
+\ No newline at end of file[m
+[1mdiff --git a/utils.py b/utils.py[m
+[1mindex 5cc9b26..24c8e85 100644[m
+[1m--- a/utils.py[m
+[1m+++ b/utils.py[m
+[36m@@ -13,6 +13,8 @@[m [mimport shutil[m
+ import sqlite3[m
+ from io import StringIO[m
+ [m
+[32m+[m[32mfrom filelock import FileLock[m
+[32m+[m
+ # =============================================================================[m
+ # Directory / file constants[m
+ # =============================================================================[m
+[36m@@ -47,25 +49,47 @@[m [mlogger.addHandler(_log_handler)[m
+ # Config helpers[m
+ # =============================================================================[m
+ [m
+[32m+[m[32mdef _config_lock():[m
+[32m+[m[32m    """Return a process-safe lock for the config file."""[m
+[32m+[m[32m    config_dir = os.path.dirname(CONFIG_FILE)[m
+[32m+[m[32m    if config_dir and not os.path.exists(config_dir):[m
+[32m+[m[32m        os.makedirs(config_dir, exist_ok=True)[m
+[32m+[m[32m    return FileLock(f"{CONFIG_FILE}.lock")[m
+[32m+[m
+[32m+[m
+ def load_config():[m
+     """Load and return the application configuration dictionary."""[m
+[31m-    if os.path.exists(CONFIG_FILE):[m
+[31m-        with open(CONFIG_FILE, "r") as f:[m
+[32m+[m[32m    lock = _config_lock()[m
+[32m+[m[32m    with lock:[m
+[32m+[m[32m        if os.path.exists(CONFIG_FILE):[m
+             try:[m
+[31m-                return json.load(f)[m
+[32m+[m[32m                with open(CONFIG_FILE, "r", encoding="utf-8") as f:[m
+[32m+[m[32m                    return json.load(f)[m
+             except Exception as e:[m
+                 logger.error("Error loading config: %s", e)[m
+                 return {"playbooks_dir": DEFAULT_PLAYBOOKS_DIR}[m
+[31m-    return {"playbooks_dir": DEFAULT_PLAYBOOKS_DIR}[m
+[32m+[m[32m        return {"playbooks_dir": DEFAULT_PLAYBOOKS_DIR}[m
+ [m
+ [m
+ def save_config(config):[m
+[31m-    """Persist *config* dictionary to disk."""[m
+[31m-    try:[m
+[31m-        with open(CONFIG_FILE, "w") as f:[m
+[31m-            json.dump(config, f, indent=2)[m
+[31m-    except Exception as e:[m
+[31m-        logger.error("Error saving config: %s", e)[m
+[32m+[m[32m    """Persist *config* dictionary to disk using a lock and atomic replace."""[m
+[32m+[m[32m    lock = _config_lock()[m
+[32m+[m[32m    with lock:[m
+[32m+[m[32m        config_dir = os.path.dirname(CONFIG_FILE)[m
+[32m+[m[32m        if config_dir and not os.path.exists(config_dir):[m
+[32m+[m[32m            os.makedirs(config_dir, exist_ok=True)[m
+[32m+[m[32m        tmp_path = f"{CONFIG_FILE}.tmp"[m
+[32m+[m[32m        try:[m
+[32m+[m[32m            with open(tmp_path, "w", encoding="utf-8") as f:[m
+[32m+[m[32m                json.dump(config, f, indent=2)[m
+[32m+[m[32m                f.flush()[m
+[32m+[m[32m                os.fsync(f.fileno())[m
+[32m+[m[32m            os.replace(tmp_path, CONFIG_FILE)[m
+[32m+[m[32m        except Exception as e:[m
+[32m+[m[32m            logger.error("Error saving config: %s", e)[m
+[32m+[m[32m        finally:[m
+[32m+[m[32m            if os.path.exists(tmp_path):[m
+[32m+[m[32m                os.unlink(tmp_path)[m
+ [m
+ [m
+ def get_playbooks_dir():[m
+[36m@@ -129,14 +153,13 @@[m [mdef init_history_db():[m
+                     time TEXT NOT NULL[m
+                 )[m
+             """)[m
+[31m-[m
+             row_count = conn.execute([m
+                 "SELECT COUNT(*) FROM playbook_runs"[m
+             ).fetchone()[0][m
+ [m
+             if row_count == 0 and os.path.exists(HISTORY_FILE):[m
+                 try:[m
+[31m-                    with open(HISTORY_FILE, "r") as f:[m
+[32m+[m[32m                    with open(HISTORY_FILE, "r", encoding="utf-8") as f:[m
+                         history = json.load(f)[m
+ [m
+                     if isinstance(history, list):[m
+[36m@@ -201,4 +224,4 @@[m [mdef add_history_record(record):[m
+                 record.get("time", ""),[m
+             ))[m
+     except Exception as e:[m
+[31m-        logger.error("Error adding history record to SQLite: %s", e)[m
+[32m+[m[32m        logger.error("Error adding history record to SQLite: %s", e)[m
+\ No newline at end of file[m
