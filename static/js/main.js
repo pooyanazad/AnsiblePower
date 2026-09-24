@@ -1,3 +1,43 @@
+// task 53: Color-code Ansible playbook output lines.
+// Returns an HTML string safe to assign to element.innerHTML.
+function colorizeAnsibleOutput(text) {
+    // Escape HTML to prevent XSS before we inject span tags.
+    function escapeHtml(str) {
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    var lines = text.split('\n');
+    var result = lines.map(function(line) {
+        var escaped = escapeHtml(line);
+        var trimmed = line.trimStart();
+
+        if (/^PLAY RECAP\b/i.test(trimmed)) {
+            return '<span class="ap-out-recap">' + escaped + '</span>';
+        }
+        if (/^PLAY \[/i.test(trimmed)) {
+            return '<span class="ap-out-play">' + escaped + '</span>';
+        }
+        if (/^TASK \[/i.test(trimmed)) {
+            return '<span class="ap-out-task">' + escaped + '</span>';
+        }
+        if (/^(ok|ok=)[\s:]/i.test(trimmed) || /\bok=\d+\b/.test(trimmed)) {
+            return '<span class="ap-out-ok">' + escaped + '</span>';
+        }
+        if (/^changed[\s:]/i.test(trimmed) || /\bchanged=\d+\b/.test(trimmed)) {
+            return '<span class="ap-out-changed">' + escaped + '</span>';
+        }
+        if (/^(fatal|failed)[\s:\[]/i.test(trimmed) || /\bfailed=\d*[1-9]\d*\b/.test(trimmed)) {
+            return '<span class="ap-out-fatal">' + escaped + '</span>';
+        }
+        return escaped;
+    });
+    return result.join('\n');
+}
+
 window.showToast = function(message, type = 'info') {
     const container = document.getElementById('toast-container');
     if (!container) return;
@@ -71,7 +111,8 @@ document.addEventListener("DOMContentLoaded", function(){
             .then(res => res.json())
             .then(data => {
                 setTimeout(() => {
-                    outputEl.textContent = data.output || data.error;
+                    // task 53: render color-coded output instead of plain text
+                    outputEl.innerHTML = colorizeAnsibleOutput(data.output || data.error || '');
                     btn.disabled = false;
                     btn.innerHTML = originalHTML;
                 }, 1000);
