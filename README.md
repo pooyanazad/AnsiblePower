@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>A lightweight, self-hosted web UI for running Ansible playbooks.</strong><br>
-  No database. No complex setup. Just clone, run, and manage your infrastructure.
+  No complex setup. Just clone, run, and manage your infrastructure.
 </p>
 
 <p align="center">
@@ -24,7 +24,7 @@
 | | AnsiblePower | AWX / Tower | Semaphore |
 |---|---|---|---|
 | **Setup** | 1 minute | 30+ minutes | 10 minutes |
-| **Database** | None (JSON files) | PostgreSQL | MySQL / BoltDB |
+| **Database** | SQLite (auto) | PostgreSQL | MySQL / BoltDB |
 | **Dependencies** | Python + Flask | Docker + PostgreSQL + Redis | Go + DB |
 | **Footprint** | ~20 MB | ~2 GB | ~100 MB |
 | **Cost** | Free & open source | Free / Paid | Free |
@@ -35,21 +35,26 @@ If you need a simple, fast way to run playbooks from a browser — without setti
 
 ## Features
 
-- **📋 Playbook Management** - List, view, and execute `.yml`/`.yaml` playbooks from a configurable directory
-- **▶️ One-Click Execution** - Run playbooks with a single click and see output instantly; a confirm dialog prevents accidental runs
-- **📊 Execution History** - Full log of every run with timestamps, export to JSON/CSV, import from backup
-- **🖥️ System Monitoring** - CPU and memory usage of your Ansible control node
-- **📁 Hosts Editor** - View and edit your Ansible inventory file directly from the browser
-- **🌙 Dark Mode** - Toggle between light and dark themes
-- **🔒 Security** - CSRF protection, path traversal prevention, input validation, and hardened HTTP headers (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`)
-- **⚙️ Configurable** - Set playbooks directory and hosts file path from the UI or environment variables
-- **⏱️ Timeout protection** - Playbooks that hang are killed after 5 minutes and a friendly message is shown
-- **🔔 Toast notifications** - Non-blocking success/error toasts replace browser `alert()` calls
-- **⏳ Loading spinner** - Visual feedback while a playbook is running; the Run button is disabled to prevent double-clicks
-- **🛡️ Confirm dialogs** - Destructive actions (run playbook, clear history) ask for confirmation first
+- **📋 Playbook Management** — List, view, and execute `.yml`/`.yaml` playbooks from a configurable directory
+- **▶️ One-Click Execution** — Run playbooks with a single click; a confirm dialog prevents accidental runs
+- **🎨 Color-coded Output** — `ok:` lines are green, `changed:` amber, `fatal:`/`failed:` red, `PLAY RECAP` bold — output is scannable at a glance
+- **📊 Color-coded History** — Green rows for successful runs, red for failures, yellow for unreachable hosts
+- **🔍 Search & Filter** — Live search on the History page filters by playbook name or output text
+- **📊 Execution History** — Full log of every run with timestamps; export to JSON/CSV, import from backup
+- **🖥️ System Monitoring** — CPU and memory usage with colored progress bars
+- **📁 Hosts Editor** — View and edit your Ansible inventory file directly from the browser
+- **🌙 Dark Mode** — Toggle between light and dark themes (stored in `localStorage`, no server round-trip)
+- **🔒 Security** — CSRF protection, path traversal prevention, input validation, and hardened HTTP headers (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`)
+- **🚦 Rate Limiting** — 60 req/min default; `/run_playbook` capped at 5 req/min to prevent abuse
+- **⚙️ Configurable** — Set playbooks directory and hosts file path from the UI or environment variables
+- **⏱️ Timeout protection** — Playbooks that hang are killed after 5 minutes with a friendly message
+- **🔔 Toast notifications** — Non-blocking success/error toasts replace browser `alert()` calls
+- **⏳ Loading spinner** — Visual feedback while a playbook runs; button disabled to prevent double-clicks
+- **🛡️ Confirm dialogs** — Destructive actions (run playbook, clear history) ask for confirmation first
+- **📱 Mobile navigation** — Responsive sidebar collapses on small screens
+- **🧩 Utils module** — Shared helpers (`utils.py`) keep route logic clean and testable
 
 ---
-
 
 ## Quick Start
 
@@ -70,7 +75,7 @@ Open [http://localhost:5000](http://localhost:5000) — done.
 | Host path | Container path | Purpose |
 |---|---|---|
 | `./playbooks/` | `/app/playbooks` | Your Ansible playbooks |
-| `./data/` | `/app/data` | Config, history, hosts file |
+| `./data/` | `/app/data` | Config, history (SQLite), hosts file |
 | `./logs/` | `/app/logs` | Application logs |
 | `~/.ssh/` | `/home/appuser/.ssh` (read-only) | SSH keys for remote hosts |
 
@@ -93,6 +98,22 @@ Open [http://localhost:5000](http://localhost:5000) and you're ready to go.
 
 ---
 
+## One-Command Dev Experience (Makefile)
+
+```bash
+make run           # Start the Flask dev server (auto-reload)
+make test          # Run the full pytest test suite
+make lint          # Run flake8 on application source
+make docker-build  # Build the Docker image
+make docker-up     # Build + start via docker compose (detached)
+make docker-down   # Stop and remove containers
+make clean         # Remove __pycache__, .pyc, .coverage artefacts
+```
+
+Run `make` (no target) for a full help summary.
+
+---
+
 ## Screenshots
 
 | Light Mode | Dark Mode |
@@ -105,25 +126,62 @@ Open [http://localhost:5000](http://localhost:5000) and you're ready to go.
 
 ```
 AnsiblePower/
-├── ansiblePower.py        # Main Flask application
+├── ansiblePower.py        # Main Flask application (routes, blueprints)
+├── utils.py               # Shared helpers: config, history, logging
+├── Makefile               # Developer convenience targets
 ├── Dockerfile             # Multi-stage Docker build
 ├── docker-compose.yml     # One-command deployment
 ├── .env.example           # Environment variable template
-├── requirements.txt       # Python dependencies
+├── requirements.txt       # Python runtime dependencies
+├── requirements-dev.txt   # Dev/test extras (pytest, flake8, …)
 ├── templates/             # Jinja2 HTML templates
-│   ├── base.html          # Layout with sidebar and navbar
+│   ├── base.html          # Layout with sidebar, navbar, dark-mode toggle
 │   ├── index.html         # Playbook listing and execution
-│   ├── history.html       # Execution history table
+│   ├── history.html       # Color-coded execution history table + search
 │   ├── settings.html      # Hosts editor, system status, config
+│   ├── errors/            # Custom 400 / 404 / 500 error pages
 │   └── partials/          # Header and sidebar components
 ├── static/
-│   ├── css/styles.css     # Custom styling with dark mode support
-│   └── js/main.js         # Frontend logic (run, show, hosts, dark mode)
-├── data/                  # Runtime data (config, history, hosts)
+│   ├── css/styles.css     # Custom styling + dark mode + output colors
+│   └── js/main.js         # Frontend logic (run, colorize, search, dark mode)
+├── data/                  # Runtime data (config.json, history.db, hosts)
 ├── playbooks/             # Your Ansible playbooks go here
-├── logs/                  # Application logs
-└── tests/                 # Unit, quality, smoke, and live tests
+├── logs/                  # Application logs (rotating, 1 MB × 3)
+└── tests/                 # Unit and integration tests
 ```
+
+---
+
+## Color-coded Output
+
+Playbook output is automatically highlighted after each run:
+
+| Pattern | Color | Meaning |
+|---|---|---|
+| `ok:` / `ok=N` | 🟢 Green | Task succeeded, no change |
+| `changed:` / `changed=N` | 🟡 Amber | Task ran and changed state |
+| `fatal:` / `failed:` / `failed=N>0` | 🔴 Red | Task failed |
+| `PLAY RECAP` | **Bold** | Summary section |
+| `PLAY [name]` | **Bold** | Play header |
+| `TASK [name]` | *Italic* | Task header |
+
+History table rows are also color-coded:
+- 🟢 **Green tint** — all tasks succeeded (`ok=N`, no failures)
+- 🔴 **Red tint** — one or more tasks failed
+- 🟡 **Yellow tint** — hosts were unreachable
+
+---
+
+## Rate Limiting
+
+To prevent abuse and accidental DoS on the control node:
+
+| Endpoint | Limit |
+|---|---|
+| All routes (default) | 60 requests / minute |
+| `POST /run_playbook` | 5 requests / minute |
+
+When a limit is exceeded the server responds with HTTP `429` and a JSON error: `{"error": "Too many requests. Please try again later."}`.
 
 ---
 
@@ -145,16 +203,13 @@ Playbooks directory and hosts file path can be changed from **Settings** in the 
 
 ```bash
 # All tests
-pytest tests/
+pytest tests/ -v
 
-# Unit tests only
-pytest tests/ut_ansiblePower.py -v
+# With coverage report
+pytest tests/ --cov=ansiblePower --cov=utils --cov-report=term-missing
 
-# Quality tests (route responses)
-pytest tests/qt_ansiblePower.py -v
-
-# Smoke tests
-pytest tests/smoke_test.py -v
+# Or via make
+make test
 ```
 
 ---
