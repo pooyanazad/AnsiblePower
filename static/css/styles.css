@@ -577,3 +577,59 @@ h1, h2, h3, h4, h5, h6 {
 .dark .ap-footer a:hover {
     color: #90cdf4;
 }
+
+/* ── Task 52: History row color-coding ───────────────────────────────────── */
+/* Success — green background tint */
+.history-row--success {
+    background-color: rgba(40, 167, 69, 0.08) !important;
+    border-left: 3px solid #28a745;
+}
+
+.history-row--success td:first-child {
+    border-left: 3px solid #28a745;
+}
+
+/* Failed — red background tint */
+.history-row--failed {
+    background-color: rgba(220, 53, 69, 0.08) !important;
+    border-left: 3px solid #dc3545;
+}
+
+/* Unreachable — yellow/amber background tint */
+.history-row--unreachable {
+    background-color: rgba(255, 193, 7, 0.12) !important;
+    border-left: 3px solid #ffc107;
+}
+
+/* Dark mode variants */
+.dark .history-row--success {
+    background-color: rgba(72, 187, 120, 0.12) !important;
+    border-left: 3px solid #48bb78;
+}
+
+.dark .history-row--failed {
+    background-color: rgba(252, 129, 129, 0.12) !important;
+    border-left: 3px solid #fc8181;
+}
+
+.dark .history-row--unreachable {
+    background-color: rgba(246, 173, 85, 0.12) !important;
+    border-left: 3px solid #f6ad55;
+}
+
+/* ── Task 53: Playbook output line color-coding ───────────────────────────── */
+/* Applied by JS — spans injected inside <pre class="playbook-output"> */
+.ap-out-ok      { color: #1e7e34; }   /* ok: lines — green */
+.ap-out-changed { color: #856404; }   /* changed: lines — amber */
+.ap-out-fatal   { color: #bd2130; font-weight: 600; } /* fatal:/failed: — red bold */
+.ap-out-recap   { font-weight: 700; color: #004085; } /* PLAY RECAP — bold blue */
+.ap-out-play    { font-weight: 600; }                 /* PLAY [name] — bold */
+.ap-out-task    { font-style: italic; }               /* TASK [name] — italic */
+
+/* Dark mode output colors */
+.dark .ap-out-ok      { color: #68d391; }
+.dark .ap-out-changed { color: #f6e05e; }
+.dark .ap-out-fatal   { color: #fc8181; font-weight: 600; }
+.dark .ap-out-recap   { font-weight: 700; color: #90cdf4; }
+.dark .ap-out-play    { font-weight: 600; color: #e2e8f0; }
+.dark .ap-out-task    { font-style: italic; color: #a0aec0; }

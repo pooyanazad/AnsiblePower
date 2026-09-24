@@ -30,7 +30,18 @@
         </thead>
         <tbody id="history-tbody">
             {% for record in history|reverse %}
-            <tr class="history-row">
+            {# task 52: classify run status for row color-coding #}
+            {% set out = record.output | lower %}
+            {% if 'fatal:' in out or ('failed=0' not in out and 'failed=' in out) %}
+                {% set row_status = 'failed' %}
+            {% elif 'unreachable=0' not in out and 'unreachable' in out %}
+                {% set row_status = 'unreachable' %}
+            {% elif 'ok=' in out or 'play recap' in out %}
+                {% set row_status = 'success' %}
+            {% else %}
+                {% set row_status = 'unknown' %}
+            {% endif %}
+            <tr class="history-row history-row--{{ row_status }}">
                 <td>{{ record.time }}</td>
                 <td>{{ record.playbook }}</td>
                 <td>{{ record.action }}</td>

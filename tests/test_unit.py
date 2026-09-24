@@ -736,6 +736,119 @@ class TestImportHistory(unittest.TestCase):
         self.mock_save_history.assert_called_once()
 
 
+
+class TestHistoryRowColorCoding(unittest.TestCase):
+    """Task 52 — history rows must carry the correct CSS modifier class."""
+
+    def setUp(self):
+        self.app = ansiblePower.app
+        self.app.config["TESTING"] = True
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.client = self.app.test_client()
+
+    def _get_history_html(self, output_text):
+        """Patch load_history to return a single record, then GET /history/."""
+        record = {"action": "run", "playbook": "test.yml",
+                  "time": "2026-09-24 12:00:00", "output": output_text}
+        with patch("ansiblePower.load_history", return_value=[record]):
+            resp = self.client.get("/history/")
+        self.assertEqual(resp.status_code, 200)
+        return resp.data.decode("utf-8")
+
+    def test_success_row_class(self):
+        """Rows with 'ok=' and no failures get the --success class."""
+        html = self._get_history_html(
+            "PLAY RECAP\nlocalhost : ok=3 changed=0 unreachable=0 failed=0"
+        )
+        self.assertIn("history-row--success", html)
+
+    def test_failed_row_class(self):
+        """Rows with failed>0 get the --failed class."""
+        html = self._get_history_html(
+            "PLAY RECAP\nlocalhost : ok=1 changed=0 unreachable=0 failed=1"
+        )
+        self.assertIn("history-row--failed", html)
+
+    def test_fatal_row_class(self):
+        """Rows with 'fatal:' get the --failed class."""
+        html = self._get_history_html("fatal: [localhost]: UNREACHABLE!")
+        # 'unreachable' is in the text but the primary marker is fatal:
+        # Jinja checks 'fatal:' under the failed branch
+        self.assertIn("history-row--failed", html)
+
+    def test_unreachable_row_class(self):
+        """Rows with unreachable>0 get the --unreachable class."""
+        html = self._get_history_html(
+            "PLAY RECAP\nlocalhost : ok=0 changed=0 unreachable=1 failed=0"
+        )
+        self.assertIn("history-row--unreachable", html)
+
+    def test_unknown_row_class(self):
+        """Rows with no Ansible keywords get the --unknown class."""
+        html = self._get_history_html("No output produced.")
+        self.assertIn("history-row--unknown", html)
+
+
+class TestColorCodedOutputEndpoint(unittest.TestCase):
+    """Task 53 — /run_playbook JSON output must be suitable for colorization."""
+
+    def setUp(self):
+        self.app = ansiblePower.app
+        self.app.config["TESTING"] = True
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.client = self.app.test_client()
+
+        import tempfile
+        self._tmp = tempfile.mkdtemp(prefix="ap_test53_")
+        self._playbooks_dir = os.path.join(self._tmp, "playbooks")
+        os.makedirs(self._playbooks_dir)
+        self._playbook_name = "color.yml"
+        with open(os.path.join(self._playbooks_dir, self._playbook_name), "w") as fh:
+            fh.write("---\n- hosts: all\n  tasks: []\n")
+
+        self._config_file = os.path.join(self._tmp, "config.json")
+        self._history_file = os.path.join(self._tmp, "history.json")
+        import json as _json
+        with open(self._config_file, "w") as fh:
+            _json.dump({
+                "playbooks_dir": self._playbooks_dir,
+                "hosts_file": os.path.join(self._tmp, "hosts"),
+            }, fh)
+
+        self._config_patcher = patch("utils.CONFIG_FILE", self._config_file)
+        self._history_patcher = patch("utils.HISTORY_FILE", self._history_file)
+        self._limiter_patcher = patch("ansiblePower.limiter.enabled", False)
+        self._config_patcher.start()
+        self._history_patcher.start()
+        self._limiter_patcher.start()
+
+    def tearDown(self):
+        self._config_patcher.stop()
+        self._history_patcher.stop()
+        self._limiter_patcher.stop()
+        import shutil
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def test_output_contains_play_recap(self):
+        """run_playbook response output must include PLAY RECAP when present."""
+        fake_output = (
+            b"PLAY [localhost] **\n"
+            b"TASK [debug] **\n"
+            b"ok: [localhost]\n"
+            b"PLAY RECAP **\n"
+            b"localhost : ok=1 changed=0 unreachable=0 failed=0\n"
+        )
+        with patch("ansiblePower.subprocess.check_output", return_value=fake_output):
+            resp = self.client.post(
+                "/run_playbook",
+                data={"playbook": self._playbook_name},
+            )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn("PLAY RECAP", data["output"])
+        self.assertIn("ok:", data["output"])
+
+
 if __name__ == "__main__":
     unittest.main()
 
