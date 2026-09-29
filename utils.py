@@ -13,16 +13,23 @@ import shutil
 import sqlite3
 from io import StringIO
 
+from filelock import FileLock, Timeout
+
 # =============================================================================
 # Directory / file constants
 # =============================================================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 CONFIG_FILE = os.path.join(BASE_DIR, "data/config.json")
+CONFIG_LOCK_FILE = CONFIG_FILE + ".lock"
 DEFAULT_PLAYBOOKS_DIR = os.path.join(BASE_DIR, "playbooks")
 HOSTS_FILE = os.path.join(BASE_DIR, "data/hosts")
 HISTORY_FILE = os.path.join(BASE_DIR, "data/history.json")
 MAX_IMPORT_HISTORY_RECORDS = 10_000
+
+# Guards data/config.json against corruption from concurrent reads/writes
+# across multiple Gunicorn worker processes.
+_config_lock = FileLock(CONFIG_LOCK_FILE, timeout=10)
 
 # =============================================================================
 # Logger (shared across the package)
@@ -50,21 +57,27 @@ logger.addHandler(_log_handler)
 
 def load_config():
     """Load and return the application configuration dictionary."""
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r") as f:
-            try:
-                return json.load(f)
-            except Exception as e:
-                logger.error("Error loading config: %s", e)
-                return {"playbooks_dir": DEFAULT_PLAYBOOKS_DIR}
-    return {"playbooks_dir": DEFAULT_PLAYBOOKS_DIR}
+    try:
+        with _config_lock:
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE, "r") as f:
+                    try:
+                        return json.load(f)
+                    except Exception as e:
+                        logger.error("Error loading config: %s", e)
+                        return {"playbooks_dir": DEFAULT_PLAYBOOKS_DIR}
+            return {"playbooks_dir": DEFAULT_PLAYBOOKS_DIR}
+    except Timeout:
+        logger.error("Timed out waiting for config lock; returning defaults")
+        return {"playbooks_dir": DEFAULT_PLAYBOOKS_DIR}
 
 
 def save_config(config):
     """Persist *config* dictionary to disk."""
     try:
-        with open(CONFIG_FILE, "w") as f:
-            json.dump(config, f, indent=2)
+        with _config_lock:
+            with open(CONFIG_FILE, "w") as f:
+                json.dump(config, f, indent=2)
     except Exception as e:
         logger.error("Error saving config: %s", e)
 
