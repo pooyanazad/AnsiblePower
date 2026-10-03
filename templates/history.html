@@ -26,6 +26,7 @@
                 <th class="history-sortable" data-sort-col="1" style="cursor:pointer;user-select:none;">Playbook <span class="sort-indicator"></span></th>
                 <th class="history-sortable" data-sort-col="2" style="cursor:pointer;user-select:none;">Action <span class="sort-indicator"></span></th>
                 <th>Output</th>
+                <th>Re-run</th>
             </tr>
         </thead>
         <tbody id="history-tbody">
@@ -52,6 +53,10 @@
                             Show more ▼
                         </button>
                     </div>
+                </td>
+                <td>
+                    <!-- task 59: re-run the same playbook straight from history -->
+                    <button type="button" class="btn btn-sm btn-outline-success history-rerun-btn" data-playbook="{{ record.playbook }}">▶ Re-run</button>
                 </td>
             </tr>
             {% endfor %}

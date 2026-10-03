@@ -495,6 +495,41 @@ document.addEventListener("DOMContentLoaded", function(){
             renderHistoryPage();
         });
     });
+    // Task 59: re-run a playbook from its history row
+    document.querySelectorAll('.history-rerun-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var playbook = btn.getAttribute('data-playbook');
+            if (!confirm("Run '" + playbook + "' again?")) return;
+            var originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Running…';
+            fetch('/run_playbook', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken
+                },
+                body: 'playbook=' + encodeURIComponent(playbook)
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (data.error) {
+                    showToast(data.error, 'error');
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                } else {
+                    showToast("Finished '" + playbook + "'. Refreshing history…", 'success');
+                    setTimeout(function() { window.location.reload(); }, 1200);
+                }
+            })
+            .catch(function() {
+                showToast('Could not connect to server.', 'error');
+                btn.disabled = false;
+                btn.textContent = originalText;
+            });
+        });
+    });
+
     renderHistoryPage();
 
     // Task 56: relative timestamps ("5 minutes ago") with the original as tooltip
