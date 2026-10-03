@@ -440,4 +440,31 @@ document.addEventListener("DOMContentLoaded", function(){
             if (noMatch) noMatch.style.display = (rows.length > 0 && !anyVisible) ? '' : 'none';
         });
     }
+
+    // Task 56: relative timestamps ("5 minutes ago") with the original as tooltip
+    function timeAgo(dateStr) {
+        var then = new Date(String(dateStr).replace(' ', 'T'));
+        if (isNaN(then.getTime())) return dateStr;
+        var seconds = Math.floor((Date.now() - then.getTime()) / 1000);
+        if (seconds < 5) return 'just now';
+        var units = [
+            ['year', 31536000], ['month', 2592000], ['day', 86400],
+            ['hour', 3600], ['minute', 60], ['second', 1]
+        ];
+        for (var i = 0; i < units.length; i++) {
+            var n = Math.floor(seconds / units[i][1]);
+            if (n >= 1) return n + ' ' + units[i][0] + (n > 1 ? 's' : '') + ' ago';
+        }
+        return 'just now';
+    }
+
+    function refreshTimestamps() {
+        document.querySelectorAll('#history-tbody .history-time').forEach(function(td) {
+            var raw = td.getAttribute('data-time');
+            td.title = raw;
+            td.textContent = timeAgo(raw);
+        });
+    }
+    refreshTimestamps();
+    if (document.getElementById('history-tbody')) setInterval(refreshTimestamps, 60000);
 });

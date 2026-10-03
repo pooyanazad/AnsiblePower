@@ -42,7 +42,7 @@
                 {% set row_status = 'unknown' %}
             {% endif %}
             <tr class="history-row history-row--{{ row_status }}">
-                <td>{{ record.time }}</td>
+                <td class="history-time" data-time="{{ record.time }}" title="{{ record.time }}">{{ record.time }}</td>
                 <td>{{ record.playbook }}</td>
                 <td>{{ record.action }}</td>
                 <td>
