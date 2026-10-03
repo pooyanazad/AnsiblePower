@@ -466,6 +466,35 @@ document.addEventListener("DOMContentLoaded", function(){
     var historyNext = document.getElementById('history-next');
     if (historyPrev) historyPrev.addEventListener('click', function() { historyPage--; renderHistoryPage(); });
     if (historyNext) historyNext.addEventListener('click', function() { historyPage++; renderHistoryPage(); });
+    // Task 58: sortable history columns (click header to toggle ▲ / ▼)
+    var historySort = { col: null, dir: 'asc' };
+    document.querySelectorAll('#history-table th.history-sortable').forEach(function(th) {
+        th.addEventListener('click', function() {
+            var col = parseInt(th.getAttribute('data-sort-col'), 10);
+            historySort.dir = (historySort.col === col && historySort.dir === 'asc') ? 'desc' : 'asc';
+            historySort.col = col;
+            var isTime = th.getAttribute('data-sort-type') === 'time';
+            var tbody = document.getElementById('history-tbody');
+            var rows = Array.prototype.slice.call(tbody.querySelectorAll('.history-row'));
+            var factor = historySort.dir === 'asc' ? 1 : -1;
+            function keyOf(row) {
+                var cell = row.cells[col];
+                if (isTime) return new Date((cell.getAttribute('data-time') || '').replace(' ', 'T')).getTime() || 0;
+                return cell.textContent.trim().toLowerCase();
+            }
+            rows.sort(function(a, b) {
+                var ka = keyOf(a), kb = keyOf(b);
+                return (ka < kb ? -1 : ka > kb ? 1 : 0) * factor;
+            });
+            rows.forEach(function(row) { tbody.appendChild(row); });
+            document.querySelectorAll('#history-table th.history-sortable').forEach(function(h) {
+                var ind = h.querySelector('.sort-indicator');
+                if (ind) ind.textContent = (h === th) ? (historySort.dir === 'asc' ? '▲' : '▼') : '';
+            });
+            historyPage = 1;
+            renderHistoryPage();
+        });
+    });
     renderHistoryPage();
 
     // Task 56: relative timestamps ("5 minutes ago") with the original as tooltip
