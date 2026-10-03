@@ -57,6 +57,12 @@
             {% endfor %}
         </tbody>
     </table>
+    <!-- task 57: client-side pagination controls -->
+    <div id="history-pagination" class="mb-3 text-center" style="display:none;">
+        <button type="button" id="history-prev" class="btn btn-sm btn-outline-secondary">Previous</button>
+        <span id="history-page-info" class="mx-3">Page 1 of 1</span>
+        <button type="button" id="history-next" class="btn btn-sm btn-outline-secondary">Next</button>
+    </div>
     <!-- task 44: shown when no rows match the search query -->
     <div id="history-no-match" class="ap-empty-state" style="display:none;">
         <div class="ap-empty-state-icon">

@@ -422,24 +422,51 @@ document.addEventListener("DOMContentLoaded", function(){
         }
     });
 
-    // Task 44: History search — filter table rows by playbook name or output text
+    // Task 44 + 57: History search and client-side pagination (20 rows/page)
+    var HISTORY_PAGE_SIZE = 20;
+    var historyPage = 1;
     var historySearch = document.getElementById('history-search');
+
+    function renderHistoryPage() {
+        var rows = Array.prototype.slice.call(document.querySelectorAll('#history-tbody .history-row'));
+        if (!rows.length) return;
+        var query = historySearch ? historySearch.value.toLowerCase().trim() : '';
+        var matched = rows.filter(function(row) {
+            var playbook = (row.cells[1] ? row.cells[1].textContent : '').toLowerCase();
+            var output   = (row.cells[3] ? row.cells[3].textContent : '').toLowerCase();
+            return !query || playbook.includes(query) || output.includes(query);
+        });
+        var totalPages = Math.max(1, Math.ceil(matched.length / HISTORY_PAGE_SIZE));
+        historyPage = Math.min(Math.max(historyPage, 1), totalPages);
+        var start = (historyPage - 1) * HISTORY_PAGE_SIZE;
+        var visible = matched.slice(start, start + HISTORY_PAGE_SIZE);
+        rows.forEach(function(row) {
+            row.style.display = visible.indexOf(row) !== -1 ? '' : 'none';
+        });
+
+        var noMatch = document.getElementById('history-no-match');
+        if (noMatch) noMatch.style.display = matched.length === 0 ? '' : 'none';
+
+        var pager = document.getElementById('history-pagination');
+        if (pager) {
+            pager.style.display = matched.length > HISTORY_PAGE_SIZE ? '' : 'none';
+            document.getElementById('history-page-info').textContent = 'Page ' + historyPage + ' of ' + totalPages;
+            document.getElementById('history-prev').disabled = historyPage <= 1;
+            document.getElementById('history-next').disabled = historyPage >= totalPages;
+        }
+    }
+
     if (historySearch) {
         historySearch.addEventListener('input', function() {
-            var query = this.value.toLowerCase().trim();
-            var rows = document.querySelectorAll('#history-tbody .history-row');
-            var anyVisible = false;
-            rows.forEach(function(row) {
-                var playbook = (row.cells[1] ? row.cells[1].textContent : '').toLowerCase();
-                var output   = (row.cells[3] ? row.cells[3].textContent : '').toLowerCase();
-                var match = !query || playbook.includes(query) || output.includes(query);
-                row.style.display = match ? '' : 'none';
-                if (match) anyVisible = true;
-            });
-            var noMatch = document.getElementById('history-no-match');
-            if (noMatch) noMatch.style.display = (rows.length > 0 && !anyVisible) ? '' : 'none';
+            historyPage = 1;
+            renderHistoryPage();
         });
     }
+    var historyPrev = document.getElementById('history-prev');
+    var historyNext = document.getElementById('history-next');
+    if (historyPrev) historyPrev.addEventListener('click', function() { historyPage--; renderHistoryPage(); });
+    if (historyNext) historyNext.addEventListener('click', function() { historyPage++; renderHistoryPage(); });
+    renderHistoryPage();
 
     // Task 56: relative timestamps ("5 minutes ago") with the original as tooltip
     function timeAgo(dateStr) {
