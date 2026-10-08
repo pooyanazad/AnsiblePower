@@ -116,7 +116,10 @@ class TestConfigAndHistory(unittest.TestCase):
 
         save_history(history_data)
 
-        self.assertEqual(load_history(), history_data)
+        self.assertEqual(
+            [{k: v for k, v in r.items() if k != 'id'} for r in load_history()],
+            history_data,
+        )
 
     def test_load_history_file_not_found(self):
         self.assertEqual(load_history(), [])
@@ -140,7 +143,10 @@ class TestConfigAndHistory(unittest.TestCase):
         save_history(history_data)
 
         self.assertTrue(os.path.exists(self.test_history_db_file))
-        self.assertEqual(load_history(), history_data)
+        self.assertEqual(
+            [{k: v for k, v in r.items() if k != 'id'} for r in load_history()],
+            history_data,
+        )
 
     @patch("utils.sqlite3.connect")
     def test_save_history_write_error(self, mock_connect):
@@ -852,3 +858,351 @@ class TestColorCodedOutputEndpoint(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
+
+# =============================================================================
+# Task 61 — Tests for settings endpoints
+# =============================================================================
+
+class TestSettingsUpdatePlaybooksDir(unittest.TestCase):
+    """Task 61 — update_playbooks_dir valid / invalid path variants."""
+
+    def setUp(self):
+        self.app = ansiblePower.app
+        self.app.config["TESTING"] = True
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.client = self.app.test_client()
+
+        import tempfile
+        self._tmp = tempfile.mkdtemp(prefix="ap_t61_pbdir_")
+        self._config_file = os.path.join(self._tmp, "config.json")
+        self._history_file = os.path.join(self._tmp, "history.json")
+
+        self._config_patcher = patch("utils.CONFIG_FILE", self._config_file)
+        self._history_patcher = patch("utils.HISTORY_FILE", self._history_file)
+        self._config_patcher.start()
+        self._history_patcher.start()
+
+    def tearDown(self):
+        self._config_patcher.stop()
+        self._history_patcher.stop()
+        import shutil
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _post(self, path):
+        return self.client.post(
+            "/settings/update_playbooks_dir",
+            data={"playbooks_dir": path},
+        )
+
+    def test_valid_existing_subdir_accepted(self):
+        """A real subdirectory inside BASE_DIR is accepted."""
+        safe_path = os.path.join(ansiblePower.BASE_DIR, "playbooks")
+        resp = self._post(safe_path)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data.get("status"), "ok")
+        self.assertIn("message", data)
+
+    def test_empty_path_rejected(self):
+        """Empty path returns 400."""
+        resp = self._post("")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("error", resp.get_json())
+
+    def test_root_path_rejected(self):
+        """'/' is outside BASE_DIR and must be rejected."""
+        resp = self._post("/")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("error", resp.get_json())
+
+    def test_etc_path_rejected(self):
+        """/etc is a dangerous system directory and must be rejected."""
+        resp = self._post("/etc")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("error", resp.get_json())
+
+    def test_parent_traversal_rejected(self):
+        """A path that escapes BASE_DIR via '..' must be rejected."""
+        outside = os.path.dirname(ansiblePower.BASE_DIR)
+        resp = self._post(outside)
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("error", resp.get_json())
+
+    def test_nonexistent_dir_rejected(self):
+        """A path that doesn't exist on disk is rejected."""
+        nonexistent = os.path.join(ansiblePower.BASE_DIR, "does_not_exist_xyz")
+        resp = self._post(nonexistent)
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("error", resp.get_json())
+
+
+class TestSettingsUpdateHostsFile(unittest.TestCase):
+    """Task 61 — update_hosts_file valid / invalid path variants."""
+
+    def setUp(self):
+        self.app = ansiblePower.app
+        self.app.config["TESTING"] = True
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.client = self.app.test_client()
+
+        import tempfile
+        self._tmp = tempfile.mkdtemp(prefix="ap_t61_hosts_")
+        self._config_file = os.path.join(self._tmp, "config.json")
+        self._history_file = os.path.join(self._tmp, "history.json")
+
+        self._config_patcher = patch("utils.CONFIG_FILE", self._config_file)
+        self._history_patcher = patch("utils.HISTORY_FILE", self._history_file)
+        self._config_patcher.start()
+        self._history_patcher.start()
+
+        # Create a real hosts file inside BASE_DIR/data so it passes all checks
+        self._data_dir = os.path.join(ansiblePower.BASE_DIR, "data")
+        os.makedirs(self._data_dir, exist_ok=True)
+        self._valid_hosts = os.path.join(self._data_dir, "test_hosts_t61")
+        with open(self._valid_hosts, "w") as fh:
+            fh.write("[test]\nlocalhost\n")
+
+    def tearDown(self):
+        self._config_patcher.stop()
+        self._history_patcher.stop()
+        if os.path.exists(self._valid_hosts):
+            os.remove(self._valid_hosts)
+        import shutil
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _post(self, path):
+        return self.client.post(
+            "/settings/update_hosts_file",
+            data={"hosts_file": path},
+        )
+
+    def test_valid_hosts_file_accepted(self):
+        """An existing file inside BASE_DIR/data is accepted."""
+        resp = self._post(self._valid_hosts)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data.get("status"), "ok")
+
+    def test_empty_path_rejected(self):
+        """Empty path returns 400."""
+        resp = self._post("")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("error", resp.get_json())
+
+    def test_path_traversal_rejected(self):
+        """A path containing '..' must be rejected."""
+        resp = self._post("../etc/passwd")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("error", resp.get_json())
+
+    def test_nonexistent_file_rejected(self):
+        """A path that doesn't point to an existing file is rejected."""
+        resp = self._post(os.path.join(ansiblePower.BASE_DIR, "data", "no_such_file"))
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("error", resp.get_json())
+
+    def test_path_outside_data_dir_rejected(self):
+        """A file outside BASE_DIR/data must be rejected even if it exists."""
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False) as tf:
+            tf.write(b"hosts")
+            outside_file = tf.name
+        try:
+            resp = self._post(outside_file)
+            self.assertEqual(resp.status_code, 400)
+            self.assertIn("error", resp.get_json())
+        finally:
+            os.unlink(outside_file)
+
+
+class TestSettingsSaveHosts(unittest.TestCase):
+    """Task 61 — save_hosts endpoint: success, not-found, permission-denied."""
+
+    def setUp(self):
+        self.app = ansiblePower.app
+        self.app.config["TESTING"] = True
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.client = self.app.test_client()
+
+        import tempfile
+        self._tmp = tempfile.mkdtemp(prefix="ap_t61_save_")
+        self._config_file = os.path.join(self._tmp, "config.json")
+        self._history_file = os.path.join(self._tmp, "history.json")
+        self._hosts_file = os.path.join(self._tmp, "hosts")
+        with open(self._hosts_file, "w") as fh:
+            fh.write("[all]\nlocalhost\n")
+        with open(self._config_file, "w") as fh:
+            json.dump({
+                "playbooks_dir": os.path.join(self._tmp, "playbooks"),
+                "hosts_file": self._hosts_file,
+            }, fh)
+
+        self._config_patcher = patch("utils.CONFIG_FILE", self._config_file)
+        self._history_patcher = patch("utils.HISTORY_FILE", self._history_file)
+        self._config_patcher.start()
+        self._history_patcher.start()
+
+    def tearDown(self):
+        self._config_patcher.stop()
+        self._history_patcher.stop()
+        import shutil
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def test_save_hosts_success(self):
+        """Posting valid content writes it to the hosts file."""
+        resp = self.client.post(
+            "/settings/save_hosts",
+            data={"content": "[webservers]\nweb1.example.com\n"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data.get("status"), "ok")
+        with open(self._hosts_file) as fh:
+            self.assertIn("web1.example.com", fh.read())
+
+    def test_save_hosts_file_not_found(self):
+        """404 is returned when the configured hosts file doesn't exist."""
+        os.remove(self._hosts_file)
+        resp = self.client.post(
+            "/settings/save_hosts",
+            data={"content": "content"},
+        )
+        self.assertEqual(resp.status_code, 404)
+        self.assertIn("error", resp.get_json())
+
+    def test_save_hosts_permission_denied(self):
+        """403 is returned when the hosts file isn't writable."""
+        os.chmod(self._hosts_file, 0o444)  # read-only
+        try:
+            resp = self.client.post(
+                "/settings/save_hosts",
+                data={"content": "content"},
+            )
+            self.assertEqual(resp.status_code, 403)
+            self.assertIn("error", resp.get_json())
+        finally:
+            os.chmod(self._hosts_file, 0o644)  # restore
+
+
+class TestSettingsSystemStatus(unittest.TestCase):
+    """Task 61 — system_status endpoint returns CPU and memory percentages."""
+
+    def setUp(self):
+        self.app = ansiblePower.app
+        self.app.config["TESTING"] = True
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.client = self.app.test_client()
+
+    def test_system_status_returns_cpu_and_memory(self):
+        """GET /settings/system_status must return cpu and memory keys."""
+        resp = self.client.get("/settings/system_status")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn("cpu", data)
+        self.assertIn("memory", data)
+        self.assertIsInstance(data["cpu"], (int, float))
+        self.assertIsInstance(data["memory"], (int, float))
+
+    def test_system_status_values_in_valid_range(self):
+        """CPU and memory percentages must be between 0 and 100."""
+        resp = self.client.get("/settings/system_status")
+        data = resp.get_json()
+        self.assertGreaterEqual(data["cpu"], 0)
+        self.assertLessEqual(data["cpu"], 100)
+        self.assertGreaterEqual(data["memory"], 0)
+        self.assertLessEqual(data["memory"], 100)
+
+    def test_system_status_error_response(self):
+        """If psutil raises an exception the endpoint returns 500 with error key."""
+        import psutil
+        with patch.object(psutil, "cpu_percent", side_effect=RuntimeError("no cpu")):
+            resp = self.client.get("/settings/system_status")
+        self.assertEqual(resp.status_code, 500)
+        self.assertIn("error", resp.get_json())
+
+
+class TestToggleDarkModeRemoved(unittest.TestCase):
+    """Task 61 — toggle_dark_mode was removed (task 37); endpoint must return 404."""
+
+    def setUp(self):
+        self.app = ansiblePower.app
+        self.app.config["TESTING"] = True
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.client = self.app.test_client()
+
+    def test_toggle_dark_mode_endpoint_does_not_exist(self):
+        """POST /settings/toggle_dark_mode must return 404 (endpoint removed in task 37)."""
+        resp = self.client.post("/settings/toggle_dark_mode")
+        self.assertEqual(resp.status_code, 404)
+
+
+# =============================================================================
+# Task 60 — Tests for DELETE single history entry endpoint
+# =============================================================================
+
+class TestDeleteHistory(unittest.TestCase):
+    """Task 60 — POST /history/delete/<id> endpoint."""
+
+    def setUp(self):
+        self.app = ansiblePower.app
+        self.app.config["TESTING"] = True
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.client = self.app.test_client()
+
+        import tempfile
+        self._tmp = tempfile.mkdtemp(prefix="ap_t60_del_")
+        self._config_file = os.path.join(self._tmp, "config.json")
+        self._history_file = os.path.join(self._tmp, "history.json")
+        with open(self._config_file, "w") as fh:
+            json.dump({
+                "playbooks_dir": os.path.join(self._tmp, "playbooks"),
+                "hosts_file": os.path.join(self._tmp, "hosts"),
+            }, fh)
+
+        self._config_patcher = patch("utils.CONFIG_FILE", self._config_file)
+        self._history_patcher = patch("utils.HISTORY_FILE", self._history_file)
+        self._config_patcher.start()
+        self._history_patcher.start()
+
+        # Seed one history record and capture its id
+        from ansiblePower import add_history_record, load_history
+        add_history_record({
+            "action": "run",
+            "playbook": "sample.yml",
+            "output": "ok",
+            "time": "2026-01-01 00:00:00",
+        })
+        records = load_history()
+        self._record_id = records[0]["id"]
+
+    def tearDown(self):
+        self._config_patcher.stop()
+        self._history_patcher.stop()
+        import shutil
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def test_delete_existing_record_returns_ok(self):
+        """Deleting an existing record returns 200 with status=ok."""
+        resp = self.client.post(f"/history/delete/{self._record_id}")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data.get("status"), "ok")
+
+    def test_delete_removes_record_from_history(self):
+        """After deletion the record no longer appears in load_history."""
+        self.client.post(f"/history/delete/{self._record_id}")
+        from ansiblePower import load_history
+        remaining = load_history()
+        ids = [r["id"] for r in remaining]
+        self.assertNotIn(self._record_id, ids)
+
+    def test_delete_nonexistent_record_returns_404(self):
+        """Deleting a non-existent id returns 404 with error key."""
+        resp = self.client.post("/history/delete/999999")
+        self.assertEqual(resp.status_code, 404)
+        self.assertIn("error", resp.get_json())
+
+    def test_delete_requires_post_method(self):
+        """GET on the delete endpoint must return 405 Method Not Allowed."""
+        resp = self.client.get(f"/history/delete/{self._record_id}")
+        self.assertEqual(resp.status_code, 405)
