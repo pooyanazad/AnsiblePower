@@ -35,6 +35,7 @@ from utils import (
     load_history,
     save_history,
     add_history_record,
+    delete_history_record,
 )
 
 # Regex for safe playbook filenames — rejects spaces, slashes, special chars (closes #29)
@@ -223,6 +224,17 @@ def show_playbook():
 def history():
     history_data = load_history()
     return render_template("history.html", history=history_data)
+
+
+@history_bp.route("/delete/<int:record_id>", methods=["POST"])
+def delete_history(record_id):
+    """Delete a single history entry by its database primary key."""
+    deleted = delete_history_record(record_id)
+    if deleted:
+        logger.info("Deleted history record id=%s", record_id)
+        return jsonify({"status": "ok", "message": "History entry deleted."})
+    logger.warning("Delete requested for non-existent history record id=%s", record_id)
+    return jsonify({"error": "History record not found."}), 404
 
 @settings_bp.route("/")
 def settings():

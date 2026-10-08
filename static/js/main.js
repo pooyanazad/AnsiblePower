@@ -530,6 +530,36 @@ document.addEventListener("DOMContentLoaded", function(){
         });
     });
 
+    // Task 60: delete a single history entry from its history row
+    document.querySelectorAll('.history-delete-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var recordId = btn.getAttribute('data-record-id');
+            if (!confirm('Delete this history entry? This cannot be undone.')) return;
+            btn.disabled = true;
+            fetch('/history/delete/' + encodeURIComponent(recordId), {
+                method: 'POST',
+                headers: {'X-CSRFToken': csrfToken}
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (data.status === 'ok') {
+                    showToast('History entry deleted.', 'success');
+                    // Remove the row from the DOM without a full page reload
+                    var row = btn.closest('tr');
+                    if (row) row.remove();
+                    renderHistoryPage();
+                } else {
+                    showToast(data.error || 'Could not delete entry.', 'error');
+                    btn.disabled = false;
+                }
+            })
+            .catch(function() {
+                showToast('Could not connect to server.', 'error');
+                btn.disabled = false;
+            });
+        });
+    });
+
     renderHistoryPage();
 
     // Task 56: relative timestamps ("5 minutes ago") with the original as tooltip

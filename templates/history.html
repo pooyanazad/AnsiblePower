@@ -27,6 +27,7 @@
                 <th class="history-sortable" data-sort-col="2" style="cursor:pointer;user-select:none;">Action <span class="sort-indicator"></span></th>
                 <th>Output</th>
                 <th>Re-run</th>
+                <th>Delete</th>
             </tr>
         </thead>
         <tbody id="history-tbody">
@@ -42,7 +43,7 @@
             {% else %}
                 {% set row_status = 'unknown' %}
             {% endif %}
-            <tr class="history-row history-row--{{ row_status }}">
+            <tr class="history-row history-row--{{ row_status }}" data-record-id="{{ record.id }}">
                 <td class="history-time" data-time="{{ record.time }}" title="{{ record.time }}">{{ record.time }}</td>
                 <td>{{ record.playbook }}</td>
                 <td>{{ record.action }}</td>
@@ -57,6 +58,13 @@
                 <td>
                     <!-- task 59: re-run the same playbook straight from history -->
                     <button type="button" class="btn btn-sm btn-outline-success history-rerun-btn" data-playbook="{{ record.playbook }}">▶ Re-run</button>
+                </td>
+                <td>
+                    <!-- task 60: delete single history entry -->
+                    <button type="button"
+                            class="btn btn-sm btn-outline-danger history-delete-btn"
+                            data-record-id="{{ record.id }}"
+                            title="Delete this entry">🗑</button>
                 </td>
             </tr>
             {% endfor %}

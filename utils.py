@@ -154,13 +154,17 @@ def init_history_db():
 
 
 def load_history():
-    """Load playbook run history from SQLite as a list of dictionaries."""
+    """Load playbook run history from SQLite as a list of dictionaries.
+
+    Each record includes the ``id`` field so callers (e.g. the delete
+    endpoint) can reference individual rows by their stable primary key.
+    """
     try:
         init_history_db()
 
         with get_history_db_connection() as conn:
             rows = conn.execute("""
-                SELECT action, playbook, output, time
+                SELECT id, action, playbook, output, time
                 FROM playbook_runs
                 ORDER BY id ASC
             """).fetchall()
@@ -203,3 +207,20 @@ def add_history_record(record):
             ))
     except Exception as e:
         logger.error("Error adding history record to SQLite: %s", e)
+
+
+def delete_history_record(record_id):
+    """Delete a single history record by its primary-key *record_id*.
+
+    Returns ``True`` if exactly one row was deleted, ``False`` otherwise.
+    """
+    try:
+        init_history_db()
+        with get_history_db_connection() as conn:
+            cursor = conn.execute(
+                "DELETE FROM playbook_runs WHERE id = ?", (record_id,)
+            )
+            return cursor.rowcount == 1
+    except Exception as e:
+        logger.error("Error deleting history record %s from SQLite: %s", record_id, e)
+        return False
