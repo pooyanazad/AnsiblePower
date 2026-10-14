@@ -1324,3 +1324,64 @@ class TestDeleteHistory(unittest.TestCase):
         """GET on the delete endpoint must return 405 Method Not Allowed."""
         resp = self.client.get(f"/history/delete/{self._record_id}")
         self.assertEqual(resp.status_code, 405)
+
+
+class TestAnsibleBinaryResolution(unittest.TestCase):
+    """Task 63 — test ansible binary resolution logic in _find_ansible_playbook.
+
+    Tests scenarios using mocks:
+    1. Environment variable override (ANSIBLE_PLAYBOOK_BIN).
+    2. Virtualenv path resolution (venv/bin/ansible-playbook).
+    3. System PATH fallback (shutil.which).
+    4. Ultimate default fallback string ("ansible-playbook").
+    """
+
+    def test_env_var_override(self):
+        """When ANSIBLE_PLAYBOOK_BIN is set, it overrides any venv or system binary."""
+        custom_bin = "/custom/opt/bin/ansible-playbook"
+        with patch.dict(os.environ, {"ANSIBLE_PLAYBOOK_BIN": custom_bin}):
+            with patch("ansiblePower.os.path.isfile", return_value=True):
+                with patch("ansiblePower.shutil.which", return_value="/usr/bin/ansible-playbook"):
+                    resolved = ansiblePower._find_ansible_playbook()
+                    self.assertEqual(resolved, custom_bin)
+
+    def test_venv_path_resolution(self):
+        """When no env override is present, existing venv binary is preferred over system PATH."""
+        expected_venv_bin = os.path.join(ansiblePower.BASE_DIR, "venv", "bin", "ansible-playbook")
+
+        def fake_isfile(path):
+            return path == expected_venv_bin
+
+        env_clean = dict(os.environ)
+        env_clean.pop("ANSIBLE_PLAYBOOK_BIN", None)
+
+        with patch.dict(os.environ, env_clean, clear=True):
+            with patch("ansiblePower.os.path.isfile", side_effect=fake_isfile):
+                with patch("ansiblePower.shutil.which", return_value="/usr/bin/ansible-playbook"):
+                    resolved = ansiblePower._find_ansible_playbook()
+                    self.assertEqual(resolved, expected_venv_bin)
+
+    def test_system_path_fallback(self):
+        """When neither env override nor venv binary exists, fallback to PATH via shutil.which."""
+        system_bin = "/usr/local/bin/ansible-playbook"
+        env_clean = dict(os.environ)
+        env_clean.pop("ANSIBLE_PLAYBOOK_BIN", None)
+
+        with patch.dict(os.environ, env_clean, clear=True):
+            with patch("ansiblePower.os.path.isfile", return_value=False):
+                with patch("ansiblePower.shutil.which", return_value=system_bin) as mock_which:
+                    resolved = ansiblePower._find_ansible_playbook()
+                    self.assertEqual(resolved, system_bin)
+                    mock_which.assert_called_once_with("ansible-playbook")
+
+    def test_default_fallback_when_not_found(self):
+        """When no env var, no venv binary, and not on PATH, return default 'ansible-playbook'."""
+        env_clean = dict(os.environ)
+        env_clean.pop("ANSIBLE_PLAYBOOK_BIN", None)
+
+        with patch.dict(os.environ, env_clean, clear=True):
+            with patch("ansiblePower.os.path.isfile", return_value=False):
+                with patch("ansiblePower.shutil.which", return_value=None):
+                    resolved = ansiblePower._find_ansible_playbook()
+                    self.assertEqual(resolved, "ansible-playbook")
+
