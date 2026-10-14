@@ -1385,3 +1385,53 @@ class TestAnsibleBinaryResolution(unittest.TestCase):
                     resolved = ansiblePower._find_ansible_playbook()
                     self.assertEqual(resolved, "ansible-playbook")
 
+
+class TestSettingsTabs(unittest.TestCase):
+    """Task 65 — test settings page renders Bootstrap tabs."""
+
+    def setUp(self):
+        import ansiblePower
+        self.app = ansiblePower.app
+        self.app.config["TESTING"] = True
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.client = self.app.test_client()
+
+    def test_settings_page_contains_four_tabs(self):
+        """GET /settings/ must render Hosts, System, Paths, and Data Management tabs."""
+        resp = self.client.get("/settings/")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+
+        # Tab navigation links
+        self.assertIn('id="hosts-tab"', html)
+        self.assertIn('href="#tab-hosts"', html)
+        self.assertIn("Hosts", html)
+
+        self.assertIn('id="system-tab"', html)
+        self.assertIn('href="#tab-system"', html)
+        self.assertIn("System", html)
+
+        self.assertIn('id="paths-tab"', html)
+        self.assertIn('href="#tab-paths"', html)
+        self.assertIn("Paths", html)
+
+        self.assertIn('id="data-tab"', html)
+        self.assertIn('href="#tab-data"', html)
+        self.assertIn("Data Management", html)
+
+        # Tab panes
+        self.assertIn('id="tab-hosts"', html)
+        self.assertIn('id="tab-system"', html)
+        self.assertIn('id="tab-paths"', html)
+        self.assertIn('id="tab-data"', html)
+
+        # Essential functional controls are preserved
+        self.assertIn('id="show-hosts-btn"', html)
+        self.assertIn('id="edit-hosts-btn"', html)
+        self.assertIn('id="save-hosts-btn"', html)
+        self.assertIn('id="status-btn"', html)
+        self.assertIn('id="playbooks-dir-form"', html)
+        self.assertIn('id="hosts-file-form"', html)
+        self.assertIn('id="clear-history-btn"', html)
+
+

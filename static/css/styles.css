@@ -633,3 +633,57 @@ h1, h2, h3, h4, h5, h6 {
 .dark .ap-out-recap   { font-weight: 700; color: #90cdf4; }
 .dark .ap-out-play    { font-weight: 600; color: #e2e8f0; }
 .dark .ap-out-task    { font-style: italic; color: #a0aec0; }
+
+/* ── Task 65: Settings page tabs ─────────────────────────────────────────── */
+.settings-tabs {
+    border-bottom: 2px solid #dee2e6;
+    margin-bottom: 0;
+}
+
+.settings-tabs .nav-link {
+    font-size: 14px;
+    font-weight: 500;
+    color: #495057;
+    padding: 10px 20px;
+    border-radius: 8px 8px 0 0;
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.settings-tabs .nav-link:hover {
+    color: #007bff;
+    background-color: rgba(0, 123, 255, 0.05);
+    border-color: #dee2e6 #dee2e6 transparent;
+}
+
+.settings-tabs .nav-link.active {
+    color: #007bff;
+    background-color: #ffffff;
+    border-color: #dee2e6 #dee2e6 #ffffff;
+    font-weight: 600;
+}
+
+/* Dark mode settings tabs */
+.dark .settings-tabs {
+    border-bottom: 2px solid #4a5568;
+}
+
+.dark .settings-tabs .nav-link {
+    color: #cbd5e0;
+}
+
+.dark .settings-tabs .nav-link:hover {
+    color: #63b3ed;
+    background-color: rgba(99, 179, 237, 0.08);
+    border-color: #4a5568 #4a5568 transparent;
+}
+
+.dark .settings-tabs .nav-link.active {
+    color: #63b3ed;
+    background-color: #4a5568;
+    border-color: #4a5568 #4a5568 #4a5568;
+}
+
+.font-monospace {
+    font-family: 'Consolas', 'Monaco', monospace;
+}
