@@ -31,7 +31,8 @@ jobs:
           mkdir -p reports
           pytest tests/test_unit.py -v --tb=short \
             --junitxml=reports/unit-results.xml \
-            --cov=ansiblePower --cov-report=term-missing
+            --cov=ansiblePower --cov-report=term-missing \
+            --cov-fail-under=40
       - name: Save report
         if: always()
         uses: actions/upload-artifact@v4
