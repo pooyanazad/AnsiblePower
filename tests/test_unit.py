@@ -1,8 +1,9 @@
 import unittest
 import os
 import json
+import csv
 import sys
-from io import BytesIO
+from io import BytesIO, StringIO
 from unittest.mock import patch, mock_open
 
 # Add parent directory to path to import ansiblePower
@@ -740,6 +741,123 @@ class TestImportHistory(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.mock_save_history.assert_called_once()
+
+    def test_import_history_unsupported_file_types_all_return_400(self):
+        """Various non-JSON/CSV extensions (.yaml, .xml, .py, .tar.gz) must all return 400."""
+        for bad_filename in ["dump.yaml", "data.xml", "script.py", "backup.tar.gz"]:
+            with self.subTest(filename=bad_filename):
+                file_data = {"file": (BytesIO(b"data"), bad_filename)}
+                resp = self.client.post(
+                    "/history/import_history",
+                    data=file_data,
+                    content_type="multipart/form-data",
+                )
+                self.assertEqual(resp.status_code, 400)
+                data = resp.get_json()
+                self.assertIn("Unsupported file type", data.get("error", ""))
+
+
+class TestHistoryExport(unittest.TestCase):
+    """Task 62 — test GET /history/export_history in JSON and CSV formats."""
+
+    def setUp(self):
+        import ansiblePower
+        self.app = ansiblePower.app
+        self.app.config["TESTING"] = True
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.client = self.app.test_client()
+
+        self.sample_records = [
+            {
+                "time": "2026-10-14 10:00:00",
+                "playbook": "site.yml",
+                "action": "run",
+                "output": "ok: [web1]\nchanged: 0\nfailed: 0",
+            },
+            {
+                "time": "2026-10-14 11:30:00",
+                "playbook": "deploy.yml",
+                "action": "run",
+                "output": "fatal: [db1]: UNREACHABLE!",
+            },
+        ]
+
+    def test_export_history_default_format_is_json(self):
+        """Default export format (no query parameter) must be JSON."""
+        with patch("ansiblePower.load_history", return_value=self.sample_records):
+            resp = self.client.get("/history/export_history")
+            self.assertEqual(resp.status_code, 200)
+            self.assertTrue(resp.content_type.startswith("application/json"))
+            self.assertEqual(
+                resp.headers.get("Content-Disposition"),
+                "attachment;filename=history.json",
+            )
+            data = resp.get_json()
+            self.assertEqual(data, self.sample_records)
+
+    def test_export_history_json_explicit(self):
+        """Export with format=json returns valid JSON with attachment header."""
+        with patch("ansiblePower.load_history", return_value=self.sample_records):
+            resp = self.client.get("/history/export_history?format=json")
+            self.assertEqual(resp.status_code, 200)
+            self.assertTrue(resp.content_type.startswith("application/json"))
+            self.assertEqual(
+                resp.headers.get("Content-Disposition"),
+                "attachment;filename=history.json",
+            )
+            data = resp.get_json()
+            self.assertEqual(len(data), 2)
+            self.assertEqual(data[0]["playbook"], "site.yml")
+            self.assertEqual(data[1]["playbook"], "deploy.yml")
+
+    def test_export_history_json_empty(self):
+        """Exporting an empty history as JSON returns empty JSON list []."""
+        with patch("ansiblePower.load_history", return_value=[]):
+            resp = self.client.get("/history/export_history?format=json")
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.get_json(), [])
+
+    def test_export_history_csv_format(self):
+        """Export with format=csv returns CSV file with header and record rows."""
+        with patch("ansiblePower.load_history", return_value=self.sample_records):
+            resp = self.client.get("/history/export_history?format=csv")
+            self.assertEqual(resp.status_code, 200)
+            self.assertTrue(resp.content_type.startswith("text/csv"))
+            self.assertEqual(
+                resp.headers.get("Content-Disposition"),
+                "attachment;filename=history.csv",
+            )
+            content = resp.data.decode("utf-8")
+            reader = list(csv.reader(StringIO(content)))
+            self.assertGreaterEqual(len(reader), 3)
+            # Header check
+            self.assertEqual(reader[0], ["time", "playbook", "action", "output"])
+            # First record
+            self.assertEqual(reader[1], [
+                "2026-10-14 10:00:00",
+                "site.yml",
+                "run",
+                "ok: [web1]\nchanged: 0\nfailed: 0",
+            ])
+            # Second record
+            self.assertEqual(reader[2], [
+                "2026-10-14 11:30:00",
+                "deploy.yml",
+                "run",
+                "fatal: [db1]: UNREACHABLE!",
+            ])
+
+    def test_export_history_csv_empty(self):
+        """Exporting an empty history as CSV returns only the header row."""
+        with patch("ansiblePower.load_history", return_value=[]):
+            resp = self.client.get("/history/export_history?format=csv")
+            self.assertEqual(resp.status_code, 200)
+            self.assertTrue(resp.content_type.startswith("text/csv"))
+            content = resp.data.decode("utf-8")
+            reader = list(csv.reader(StringIO(content)))
+            self.assertEqual(len(reader), 1)
+            self.assertEqual(reader[0], ["time", "playbook", "action", "output"])
+
 
 
 
