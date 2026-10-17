@@ -457,14 +457,26 @@ app.register_blueprint(history_bp)
 app.register_blueprint(settings_bp)
 
 # =============================================================================
-# Security Headers — applied to every response (task 21)
+# Security Headers — applied to every response (task 21, task 66)
 # =============================================================================
+CSP_POLICY = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline' https://stackpath.bootstrapcdn.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com; "
+    "style-src 'self' 'unsafe-inline' https://stackpath.bootstrapcdn.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
+    "font-src 'self' https://cdnjs.cloudflare.com data:; "
+    "img-src 'self' data:; "
+    "connect-src 'self'; "
+    "frame-ancestors 'none';"
+)
+
+
 @app.after_request
 def set_security_headers(response):
     """Attach security-related HTTP headers to every outgoing response."""
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = CSP_POLICY
     return response
 
 def _wants_json():

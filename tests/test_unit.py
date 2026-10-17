@@ -226,6 +226,12 @@ class TestSecurityHeaders(unittest.TestCase):
             response.headers.get("Referrer-Policy"),
             "strict-origin-when-cross-origin",
         )
+        csp = response.headers.get("Content-Security-Policy", "")
+        self.assertTrue(csp, "Content-Security-Policy header must be present")
+        self.assertIn("'self'", csp)
+        self.assertIn("stackpath.bootstrapcdn.com", csp)
+        self.assertIn("cdnjs.cloudflare.com", csp)
+        self.assertIn("cdn.jsdelivr.net", csp)
 
     def test_security_headers_on_homepage(self):
         """Security headers must be set on GET /."""
@@ -251,6 +257,14 @@ class TestSecurityHeaders(unittest.TestCase):
         """Security headers must also be present on 404 error responses."""
         resp = self.client.get("/nonexistent-route-xyz")
         self._assert_security_headers(resp)
+
+    def test_csp_whitelists_required_sources(self):
+        """CSP header must whitelist 'self', stackpath, cdnjs, and jsdelivr (task 66)."""
+        resp = self.client.get("/")
+        csp = resp.headers.get("Content-Security-Policy")
+        self.assertIsNotNone(csp)
+        for expected in ("'self'", "stackpath.bootstrapcdn.com", "cdnjs.cloudflare.com", "cdn.jsdelivr.net"):
+            self.assertIn(expected, csp, f"Expected {expected} in Content-Security-Policy header")
 
 
 class TestRunPlaybookValid(unittest.TestCase):
