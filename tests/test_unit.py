@@ -770,6 +770,26 @@ class TestImportHistory(unittest.TestCase):
                 data = resp.get_json()
                 self.assertIn("Unsupported file type", data.get("error", ""))
 
+    def test_import_history_file_exceeds_max_content_length(self):
+        """Uploading a file exceeding 5MB must return HTTP 413 with a JSON error (task 67)."""
+        large_content = b"0" * (5 * 1024 * 1024 + 1024)
+        file_data = {"file": (BytesIO(large_content), "large.json")}
+        resp = self.client.post(
+            "/history/import_history",
+            data=file_data,
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(resp.status_code, 413)
+        self.assertTrue(resp.is_json, "Response must be JSON")
+        data = resp.get_json()
+        self.assertIn("error", data)
+        self.assertIn("5MB", data["error"])
+        self.mock_save_history.assert_not_called()
+
+    def test_max_content_length_config(self):
+        """MAX_CONTENT_LENGTH must be configured to 5MB (task 67)."""
+        self.assertEqual(self.app.config.get("MAX_CONTENT_LENGTH"), 5 * 1024 * 1024)
+
 
 class TestHistoryExport(unittest.TestCase):
     """Task 62 — test GET /history/export_history in JSON and CSV formats."""
@@ -1447,5 +1467,28 @@ class TestSettingsTabs(unittest.TestCase):
         self.assertIn('id="playbooks-dir-form"', html)
         self.assertIn('id="hosts-file-form"', html)
         self.assertIn('id="clear-history-btn"', html)
+
+
+class TestErrorHandlers(unittest.TestCase):
+    """Test custom HTTP error handlers (task 67)."""
+
+    def setUp(self):
+        import ansiblePower
+        self.app = ansiblePower.app
+        self.app.config["TESTING"] = True
+        self.client = self.app.test_client()
+
+    def test_413_errorhandler_returns_json(self):
+        """HTTP 413 errorhandler must return JSON format with an error description (task 67)."""
+        from werkzeug.exceptions import RequestEntityTooLarge
+        with self.app.test_request_context():
+            raw_response = self.app.handle_user_exception(RequestEntityTooLarge())
+            response = self.app.make_response(raw_response)
+            self.assertEqual(response.status_code, 413)
+            self.assertTrue(response.is_json)
+            data = response.get_json()
+            self.assertIn("error", data)
+            self.assertIn("5MB", data["error"])
+
 
 

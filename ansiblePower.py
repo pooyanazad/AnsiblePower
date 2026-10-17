@@ -63,6 +63,7 @@ def _find_ansible_playbook():
 ANSIBLE_PLAYBOOK = _find_ansible_playbook()
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(24).hex())
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
 
 csrf = CSRFProtect(app)
 
@@ -499,6 +500,11 @@ def not_found_error(error):
     if _wants_json():
         return jsonify({"error": "Not found"}), 404
     return render_template("errors/404.html"), 404
+
+@app.errorhandler(413)
+def request_entity_too_large_error(error):
+    """Return JSON error when uploaded file exceeds MAX_CONTENT_LENGTH (task 67)."""
+    return jsonify({"error": "File size exceeds maximum allowed limit of 5MB."}), 413
 
 @app.errorhandler(429)
 def too_many_requests_error(error):
