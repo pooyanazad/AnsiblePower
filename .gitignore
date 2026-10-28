@@ -12,6 +12,7 @@
 
 # Ignore user data and history
 /data/*.json
+/data/inventories/
 
 # Ignore all log files inside /logs
 /logs/*.log

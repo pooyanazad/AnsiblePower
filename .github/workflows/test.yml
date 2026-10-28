@@ -28,7 +28,7 @@ jobs:
       - name: Run unit tests
         run: |
           mkdir -p reports
-          pytest tests/test_unit.py tests/test_auth.py -v --tb=short \
+          pytest tests/test_unit.py tests/test_auth.py tests/test_inventory_security.py -v --tb=short \
             --junitxml=reports/unit-results.xml \
             --cov=ansiblePower --cov-report=term-missing \
             --cov-fail-under=40

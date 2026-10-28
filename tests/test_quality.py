@@ -21,7 +21,7 @@ class TestFlaskRoutes(unittest.TestCase):
         self.playbooks_dir = os.path.join(self.test_dir, "playbooks")
         os.makedirs(self.playbooks_dir)
         self.config_file = os.path.join(self.test_dir, "config.json")
-        self.hosts_file = os.path.join(self.test_dir, "hosts")
+        self.hosts_file = utils.HOSTS_FILE
         self.history_file = os.path.join(self.test_dir, "history.json")
 
         # Create test config
@@ -142,7 +142,7 @@ class TestStandardizedApiResponses(unittest.TestCase):
         self.playbooks_dir = os.path.join(self.test_dir, "playbooks")
         os.makedirs(self.playbooks_dir)
         self.config_file = os.path.join(self.test_dir, "config.json")
-        self.hosts_file = os.path.join(self.test_dir, "hosts")
+        self.hosts_file = utils.HOSTS_FILE
         self.history_file = os.path.join(self.test_dir, "history.json")
 
         with open(self.config_file, "w") as f:
@@ -204,7 +204,7 @@ class TestStandardizedApiResponses(unittest.TestCase):
     # --- update_hosts_file ---
 
     def test_update_hosts_file_success_schema(self):
-        """Hosts file must be inside BASE_DIR/data — use the real app hosts file."""
+        """Hosts file must be inside the dedicated inventory directory — use the real app hosts file."""
         import ansiblePower
         safe_hosts = ansiblePower.HOSTS_FILE
         resp = self.client.post(

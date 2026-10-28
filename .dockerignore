@@ -12,3 +12,6 @@ logs/
 improvements.md
 .coverage
 htmlcov/
+data/auth.db*
+data/inventories/
+.env

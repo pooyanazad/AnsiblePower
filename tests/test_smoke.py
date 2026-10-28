@@ -33,7 +33,7 @@ class SmokeTestAnsiblePower(unittest.TestCase):
         # Create a temporary directory for test data
         self.test_dir = tempfile.mkdtemp()
         self.config_file = os.path.join(self.test_dir, 'config.json')
-        self.hosts_file = os.path.join(self.test_dir, 'hosts')
+        self.hosts_file = utils.HOSTS_FILE
         self.history_file = os.path.join(self.test_dir, 'history.json')
         
         # Create test config

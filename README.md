@@ -77,7 +77,7 @@ then sign in at [http://localhost:5000](http://localhost:5000).
 | Host path | Container path | Purpose |
 |---|---|---|
 | `./playbooks/` | `/app/playbooks` | Your Ansible playbooks |
-| `./data/` | `/app/data` | Config, history (SQLite), hosts file |
+| `./data/` | `/app/data` | Config, credentials, history (SQLite), and `inventories/` |
 | `./logs/` | `/app/logs` | Application logs |
 | `~/.ssh/` | `/home/appuser/.ssh` (read-only) | SSH keys for remote hosts |
 
@@ -147,7 +147,7 @@ AnsiblePower/
 ├── static/
 │   ├── css/styles.css     # Custom styling + dark mode + output colors
 │   └── js/main.js         # Frontend logic (run, colorize, search, dark mode)
-├── data/                  # Runtime data (config.json, history.db, hosts)
+├── data/                  # Runtime data (config.json, auth.db, history.db, inventories/hosts)
 ├── playbooks/             # Your Ansible playbooks go here
 ├── logs/                  # Application logs (rotating, 1 MB × 3)
 └── tests/                 # Unit and integration tests
@@ -209,6 +209,19 @@ and exports require login. `/health` exposes only liveness, and `/login` accepts
 credentials. Sessions expire after 30 minutes even while active; signing out revokes the
 session on the server. Serve deployments over HTTPS and enable secure cookies. Fine-grained
 roles are deferred to task 62; the initial account is an administrator.
+
+Keep inventories under `data/inventories/` (the default is `data/inventories/hosts`).
+Settings accepts existing regular files there and stores their canonical paths. Every
+read, edit, and playbook run revalidates the path; symlinks, hard links, hidden paths,
+databases, and internal application filenames are rejected. Missing or unsafe inventories
+block execution. Each run uses a private inventory snapshot with the original extension
+and adjacent `group_vars`/`host_vars` directory, then removes it when the run finishes.
+
+On upgrade, the default `data/hosts` is copied byte for byte to `data/inventories/hosts`,
+and the original remains as a backup. An existing different destination causes migration
+to stop without changing either file or the configuration; resolve the conflict locally
+and restart. Other custom inventory paths outside `data/inventories/` must be copied there
+manually and selected in Settings. Unsafe persisted paths remain blocked, including at startup.
 
 ---
 

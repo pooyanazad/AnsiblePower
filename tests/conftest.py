@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import ansiblePower  # noqa: E402  (must come after sys.path manipulation)
 import utils  # noqa: E402
 import auth  # noqa: E402
+import inventory  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -34,6 +35,17 @@ def isolated_auth(tmp_path, monkeypatch):
     monkeypatch.setitem(ansiblePower.app.config, "WTF_CSRF_ENABLED", False)
     monkeypatch.setitem(ansiblePower.app.config, "SESSION_COOKIE_SECURE", False)
     ansiblePower.limiter.reset()
+
+
+@pytest.fixture(autouse=True)
+def isolated_inventory(tmp_path, monkeypatch):
+    root = tmp_path / "inventories"
+    root.mkdir()
+    hosts = root / "hosts"
+    hosts.write_text("[local]\nlocalhost ansible_connection=local\n")
+    monkeypatch.setattr(inventory, "INVENTORY_DIR", str(root))
+    monkeypatch.setattr(utils, "HOSTS_FILE", str(hosts))
+    monkeypatch.setattr(ansiblePower, "HOSTS_FILE", str(hosts))
 
 
 @pytest.fixture()
@@ -52,7 +64,7 @@ def tmp_data_dir():
     playbooks_dir = os.path.join(base, "playbooks")
     os.makedirs(playbooks_dir)
 
-    hosts_file = os.path.join(base, "hosts")
+    hosts_file = os.path.join(inventory.INVENTORY_DIR, "hosts")
     config_file = os.path.join(base, "config.json")
     history_file = os.path.join(base, "history.json")
 

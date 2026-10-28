@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import time
 import threading
+import sys
 import pytest
 from werkzeug.serving import make_server
 
@@ -25,7 +26,7 @@ def live_server(isolated_auth):
     global BASE_URL, session
     with tempfile.TemporaryDirectory() as base, pytest.MonkeyPatch.context() as monkeypatch:
         config = os.path.join(base, "config.json")
-        hosts = os.path.join(base, "hosts")
+        hosts = utils.HOSTS_FILE
         with open(hosts, "w") as stream:
             stream.write("[local]\nlocalhost ansible_connection=local\n")
         with open(config, "w") as stream:
@@ -35,6 +36,16 @@ def live_server(isolated_auth):
         monkeypatch.setitem(ansiblePower.app.config, "AUTH_DATABASE", os.path.join(base, "auth.db"))
         monkeypatch.setitem(ansiblePower.app.config, "WTF_CSRF_ENABLED", True)
         monkeypatch.setitem(ansiblePower.app.config, "SESSION_COOKIE_SECURE", False)
+        # Exercise a real subprocess without connecting to infrastructure or
+        # depending on Ansible being installed in the HTTP test environment.
+        runner = os.path.join(base, "ansible-playbook-test")
+        with open(runner, "w") as stream:
+            stream.write(f"#!{sys.executable}\n"
+                         "import pathlib, sys\n"
+                         "assert 'localhost' in pathlib.Path(sys.argv[sys.argv.index('-i') + 1]).read_text()\n"
+                         "print('PLAY RECAP: localhost : ok=1 changed=0 unreachable=0 failed=0')\n")
+        os.chmod(runner, 0o700)
+        monkeypatch.setattr(ansiblePower, "ANSIBLE_PLAYBOOK", runner)
         auth.create_admin(ansiblePower.app.config["AUTH_DATABASE"], "admin", "live test password")
         server = make_server("127.0.0.1", 0, ansiblePower.app)
         BASE_URL = f"http://127.0.0.1:{server.server_port}"
@@ -95,6 +106,7 @@ def test_endpoints():
     res = session.post(f"{BASE_URL}/run_playbook", data={"playbook": "sample.yml"}, headers=headers)
     assert res.status_code == 200, f"run_playbook returned {res.status_code}"
     assert "output" in res.json(), "No output in run_playbook response"
+    assert "ok=1" in res.json()["output"]
     
     # Wait for history to be written
     time.sleep(1)

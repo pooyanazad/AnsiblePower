@@ -11,6 +11,10 @@ import logging.handlers
 import os
 import shutil
 import sqlite3
+import fcntl
+import stat
+import tempfile
+import inventory
 from io import StringIO
 
 # =============================================================================
@@ -20,7 +24,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 CONFIG_FILE = os.path.join(BASE_DIR, "data/config.json")
 DEFAULT_PLAYBOOKS_DIR = os.path.join(BASE_DIR, "playbooks")
-HOSTS_FILE = os.path.join(BASE_DIR, "data/hosts")
+HOSTS_FILE = os.path.join(inventory.INVENTORY_DIR, "hosts")
+LEGACY_HOSTS_FILE = os.path.join(BASE_DIR, "data", "hosts")
 HISTORY_FILE = os.path.join(BASE_DIR, "data/history.json")
 MAX_IMPORT_HISTORY_RECORDS = 10_000
 
@@ -61,12 +66,22 @@ def load_config():
 
 
 def save_config(config):
-    """Persist *config* dictionary to disk."""
+    """Atomically persist configuration so failed migrations keep the old file."""
+    temporary = None
     try:
-        with open(CONFIG_FILE, "w") as f:
+        fd, temporary = tempfile.mkstemp(prefix=".config-", dir=os.path.dirname(os.path.abspath(CONFIG_FILE)))
+        with os.fdopen(fd, "w") as f:
             json.dump(config, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temporary, CONFIG_FILE)
+        return True
     except Exception as e:
         logger.error("Error saving config: %s", e)
+        return False
+    finally:
+        if temporary and os.path.exists(temporary):
+            os.unlink(temporary)
 
 
 def get_playbooks_dir():
@@ -76,9 +91,77 @@ def get_playbooks_dir():
 
 
 def get_hosts_file():
-    """Return the configured hosts file path."""
+    """Revalidate persisted inventory configuration on every use."""
     config = load_config()
-    return config.get("hosts_file", HOSTS_FILE)
+    return inventory.validate_path(config.get("hosts_file", HOSTS_FILE), must_exist=False)
+
+
+def init_inventory():
+    """Copy the legacy default inventory without overwriting either copy.
+
+    Keep data/hosts as a backup. Conflicts and unsafe configured paths require
+    administrator repair rather than silently choosing a different inventory.
+    """
+    root = os.path.abspath(inventory.INVENTORY_DIR)
+    with inventory.directory_fd(os.path.dirname(root)) as data_dir:
+        # Serialize migration across Gunicorn workers without a public lock file.
+        fcntl.flock(data_dir, fcntl.LOCK_EX)
+        try:
+            try:
+                os.mkdir(os.path.basename(root), mode=0o700, dir_fd=data_dir)
+            except FileExistsError:
+                pass
+            with inventory.directory_fd(root) as destination_dir:
+                config = load_config()
+                configured = config.get("hosts_file", LEGACY_HOSTS_FILE)
+                if not isinstance(configured, str):
+                    raise ValueError("Invalid configured inventory path")
+                selected = os.path.abspath(os.path.join(BASE_DIR, configured))
+                if selected != os.path.abspath(LEGACY_HOSTS_FILE):
+                    # Existing explicit inventories must pass the current policy.
+                    inventory.validate_path(configured)
+                    return
+
+                content = b"# Ansible hosts file\n[webservers]\n# web1.example.com\n\n[databases]\n"
+                if os.path.lexists(LEGACY_HOSTS_FILE):
+                    with inventory.directory_fd(os.path.dirname(LEGACY_HOSTS_FILE)) as legacy_dir:
+                        fd = os.open(os.path.basename(LEGACY_HOSTS_FILE), os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=legacy_dir)
+                        try:
+                            metadata = os.fstat(fd)
+                            if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+                                raise ValueError("Legacy inventory must be a regular file without hard links")
+                            source = os.fdopen(fd, "rb")
+                        except BaseException:
+                            os.close(fd)
+                            raise
+                        with source:
+                            content = source.read()
+
+                destination = inventory.validate_path(HOSTS_FILE, must_exist=False)
+                if os.path.lexists(destination):
+                    # Compare bytes without changing line endings or encoding.
+                    with inventory.directory_fd(os.path.dirname(destination)) as parent:
+                        fd = os.open(os.path.basename(destination), os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+                        try:
+                            inventory.check_regular_file(os.fstat(fd))
+                            existing = os.fdopen(fd, "rb")
+                        except BaseException:
+                            os.close(fd)
+                            raise
+                    with existing:
+                        if existing.read() != content:
+                            raise ValueError("Inventory migration conflict; both files were left untouched")
+                else:
+                    fd = os.open(os.path.basename(destination), os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=destination_dir)
+                    with os.fdopen(fd, "wb") as target:
+                        target.write(content)
+                        target.flush()
+                        os.fsync(target.fileno())
+                config["hosts_file"] = destination
+                if not save_config(config):
+                    raise OSError("Could not persist migrated inventory configuration")
+        finally:
+            fcntl.flock(data_dir, fcntl.LOCK_UN)
 
 
 # =============================================================================

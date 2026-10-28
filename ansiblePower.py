@@ -10,6 +10,7 @@ import csv
 from datetime import datetime, timedelta
 import click
 import auth
+import inventory
 from io import StringIO
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Response, Blueprint
 from flask_wtf.csrf import CSRFProtect
@@ -31,6 +32,7 @@ from utils import (
     save_config,
     get_playbooks_dir,
     get_hosts_file,
+    init_inventory,
     get_history_db_file,
     get_history_db_connection,
     init_history_db,
@@ -233,16 +235,14 @@ def run_playbook():
 
     cmd = [ANSIBLE_PLAYBOOK, playbook_path]
 
-    # Pass the inventory/hosts file if configured
-    hosts_file = get_hosts_file()
-    if os.path.exists(hosts_file):
-        cmd += ["-i", hosts_file]
-    else:
-        # No hosts file — fall back to localhost for convenience
-        cmd += ["-i", "localhost,", "--connection=local"]
     try:
-        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=300)
+        hosts_file = get_hosts_file()
+        with inventory.for_run(hosts_file) as (snapshot, descriptor):
+            output = subprocess.check_output(cmd + ["-i", snapshot], stderr=subprocess.STDOUT,
+                                             timeout=300, pass_fds=(descriptor,))
         output = output.decode("utf-8")
+    except (ValueError, OSError) as e:
+        return _inventory_error(e)
     except subprocess.CalledProcessError as e:
         # Even if the play fails (e.g. unreachable host), record the output.
         output = e.output.decode("utf-8")
@@ -348,30 +348,17 @@ def update_hosts_file():
     if not new_hosts_file:
         return jsonify({"error": "Hosts file path cannot be empty"}), 400
 
-    # Security: reject paths containing '..' to prevent directory traversal
-    if ".." in new_hosts_file:
-        logger.warning("Rejected hosts_file path containing '..': %s", new_hosts_file)
-        return jsonify({"error": "Hosts file path must not contain '..'"}), 400
-
-    # Security: the path must point to an existing file
-    if not os.path.isfile(new_hosts_file):
-        logger.warning("Rejected hosts_file path that is not an existing file: %s", new_hosts_file)
-        return jsonify({"error": "Hosts file path must point to an existing file"}), 400
-
-    # Security: restrict hosts file to paths inside BASE_DIR/data only.
-    # Allowing arbitrary absolute paths enables arbitrary file read/write (e.g. ~/.ssh/id_rsa)
-    real_new_hosts = os.path.realpath(new_hosts_file)
-    safe_data_dir = os.path.realpath(os.path.join(BASE_DIR, "data"))
     try:
-        if os.path.commonpath([real_new_hosts, safe_data_dir]) != safe_data_dir:
-            raise ValueError("outside safe dir")
-    except ValueError:
-        logger.warning("Rejected unsafe hosts_file path: %s", new_hosts_file)
-        return jsonify({"error": "Hosts file must be inside the application data directory"}), 400
+        canonical = inventory.validate_path(new_hosts_file)
+        with inventory.open_file(canonical):
+            pass
+    except (ValueError, OSError):
+        return jsonify({"error": "Select an existing regular file inside the dedicated inventory directory"}), 400
     
     config = load_config()
-    config["hosts_file"] = new_hosts_file
-    save_config(config)
+    config["hosts_file"] = canonical
+    if not save_config(config):
+        return jsonify({"error": "Could not save inventory configuration"}), 500
     logger.info("Updated hosts file path to: %s", new_hosts_file)
     return jsonify({"status": "ok", "message": "Hosts file path updated successfully"})
 
@@ -385,10 +372,12 @@ def get_hosts():
         if not os.access(hosts_file, os.R_OK):
             logger.error("Read permission denied for hosts file: %s", hosts_file)
             return jsonify({"error": "Add read permission to user to file"}), 403
-        with open(hosts_file, "r") as f:
+        with inventory.open_file(hosts_file) as f:
             content = f.read()
         logger.info("Hosts file read successfully")
         return jsonify({"content": content})
+    except (ValueError, OSError) as e:
+        return _inventory_error(e)
     except Exception as e:
         logger.exception("Error getting hosts file")
         return jsonify({"error": "Unexpected error occurred"}), 500
@@ -404,13 +393,24 @@ def save_hosts():
         if not os.access(hosts_file, os.W_OK):
             logger.error("Write permission denied for hosts file: %s", hosts_file)
             return jsonify({"error": "Please add write permission to host file"}), 403
-        with open(hosts_file, "w") as f:
+        with inventory.open_file(hosts_file, writable=True) as f:
             f.write(new_content)
         logger.info("Hosts file saved successfully")
         return jsonify({"status": "ok", "message": "Hosts file saved successfully."})
+    except (ValueError, OSError) as e:
+        return _inventory_error(e)
     except Exception as e:
         logger.exception("Error saving hosts file")
         return jsonify({"error": "Error saving hosts file"}), 500
+
+
+def _inventory_error(error):
+    if isinstance(error, FileNotFoundError):
+        return jsonify({"error": "Inventory file not found; check the path in settings"}), 404
+    if isinstance(error, PermissionError):
+        return jsonify({"error": "Inventory permission denied"}), 403
+    logger.warning("Rejected unsafe inventory: %s", error)
+    return jsonify({"error": "Invalid inventory path; select a regular file inside the dedicated inventory directory"}), 400
 
 @settings_bp.route("/system_status", methods=["GET"])
 def system_status():
@@ -599,14 +599,11 @@ def _ensure_dirs():
             f.write("---\n# Sample Ansible Playbook\n- name: Sample playbook\n  hosts: all\n  tasks:\n    - name: Print hello message\n      debug:\n        msg: \"Hello from AnsiblePower!\"\n")
     init_history_db()
     if not os.path.exists(CONFIG_FILE):
-        save_config({"playbooks_dir": DEFAULT_PLAYBOOKS_DIR, "hosts_file": HOSTS_FILE})
-    hosts_file_path = get_hosts_file()
-    if not os.path.exists(hosts_file_path):
-        hosts_dir = os.path.dirname(hosts_file_path)
-        if hosts_dir and not os.path.exists(hosts_dir):
-            os.makedirs(hosts_dir)
-        with open(hosts_file_path, "w") as f:
-            f.write("# Ansible hosts file\n# Add your hosts here\n[webservers]\n# web1.example.com\n# web2.example.com\n\n[databases]\n# db1.example.com\n")
+        save_config({"playbooks_dir": DEFAULT_PLAYBOOKS_DIR})
+    try:
+        init_inventory()
+    except (ValueError, OSError) as e:
+        logger.error("Inventory setup needs administrator attention: %s", e)
 
 _ensure_dirs()
 

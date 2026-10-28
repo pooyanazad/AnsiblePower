@@ -4,7 +4,7 @@ import json
 import csv
 import sys
 from io import BytesIO, StringIO
-from unittest.mock import patch, mock_open
+from unittest.mock import patch
 
 # Add parent directory to path to import ansiblePower
 import auth
@@ -92,7 +92,7 @@ class TestConfigAndHistory(unittest.TestCase):
 
         self.assertEqual(loaded_config, config_data)
 
-    @patch("utils.open", new_callable=mock_open)
+    @patch("utils.os.replace")
     def test_save_config_write_error(self, mock_file):
         mock_file.side_effect = IOError("Permission denied")
         config_data = {"playbooks_dir": "/new/path"}
@@ -303,7 +303,7 @@ class TestRunPlaybookValid(unittest.TestCase):
         with open(self._config_file, "w") as fh:
             _json.dump({
                 "playbooks_dir": self._playbooks_dir,
-                "hosts_file": os.path.join(self._tmp, "hosts"),
+                "hosts_file": utils.HOSTS_FILE,
             }, fh)
 
         self._config_patcher  = patch("utils.CONFIG_FILE",  self._config_file)
@@ -376,7 +376,7 @@ class TestRunPlaybookFailure(unittest.TestCase):
         with open(self._config_file, "w") as fh:
             _json.dump({
                 "playbooks_dir": self._playbooks_dir,
-                "hosts_file": os.path.join(self._tmp, "hosts"),
+                "hosts_file": utils.HOSTS_FILE,
             }, fh)
 
         self._config_patcher  = patch("utils.CONFIG_FILE",  self._config_file)
@@ -444,7 +444,7 @@ class TestRunPlaybookTimeout(unittest.TestCase):
         with open(self._config_file, "w") as fh:
             _json.dump({
                 "playbooks_dir": self._playbooks_dir,
-                "hosts_file": os.path.join(self._tmp, "hosts"),
+                "hosts_file": utils.HOSTS_FILE,
             }, fh)
 
         self._config_patcher  = patch("utils.CONFIG_FILE",  self._config_file)
@@ -1004,7 +1004,7 @@ class TestColorCodedOutputEndpoint(unittest.TestCase):
         with open(self._config_file, "w") as fh:
             _json.dump({
                 "playbooks_dir": self._playbooks_dir,
-                "hosts_file": os.path.join(self._tmp, "hosts"),
+                "hosts_file": utils.HOSTS_FILE,
             }, fh)
 
         self._config_patcher = patch("utils.CONFIG_FILE", self._config_file)
@@ -1147,8 +1147,8 @@ class TestSettingsUpdateHostsFile(unittest.TestCase):
         self._config_patcher.start()
         self._history_patcher.start()
 
-        # Create a real hosts file inside BASE_DIR/data so it passes all checks
-        self._data_dir = os.path.join(ansiblePower.BASE_DIR, "data")
+        # Create a real hosts file inside the dedicated inventory directory so it passes all checks
+        self._data_dir = os.path.dirname(utils.HOSTS_FILE)
         os.makedirs(self._data_dir, exist_ok=True)
         self._valid_hosts = os.path.join(self._data_dir, "test_hosts_t61")
         with open(self._valid_hosts, "w") as fh:
@@ -1169,7 +1169,7 @@ class TestSettingsUpdateHostsFile(unittest.TestCase):
         )
 
     def test_valid_hosts_file_accepted(self):
-        """An existing file inside BASE_DIR/data is accepted."""
+        """An existing file inside the dedicated inventory directory is accepted."""
         resp = self._post(self._valid_hosts)
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
@@ -1194,7 +1194,7 @@ class TestSettingsUpdateHostsFile(unittest.TestCase):
         self.assertIn("error", resp.get_json())
 
     def test_path_outside_data_dir_rejected(self):
-        """A file outside BASE_DIR/data must be rejected even if it exists."""
+        """A file outside the dedicated inventory directory must be rejected even if it exists."""
         import tempfile
         with tempfile.NamedTemporaryFile(delete=False) as tf:
             tf.write(b"hosts")
@@ -1223,7 +1223,7 @@ class TestSettingsSaveHosts(unittest.TestCase):
         self._tmp = tempfile.mkdtemp(prefix="ap_t61_save_")
         self._config_file = os.path.join(self._tmp, "config.json")
         self._history_file = os.path.join(self._tmp, "history.json")
-        self._hosts_file = os.path.join(self._tmp, "hosts")
+        self._hosts_file = utils.HOSTS_FILE
         with open(self._hosts_file, "w") as fh:
             fh.write("[all]\nlocalhost\n")
         with open(self._config_file, "w") as fh:
@@ -1360,7 +1360,7 @@ class TestDeleteHistory(unittest.TestCase):
         with open(self._config_file, "w") as fh:
             json.dump({
                 "playbooks_dir": os.path.join(self._tmp, "playbooks"),
-                "hosts_file": os.path.join(self._tmp, "hosts"),
+                "hosts_file": utils.HOSTS_FILE,
             }, fh)
 
         self._config_patcher = patch("utils.CONFIG_FILE", self._config_file)
