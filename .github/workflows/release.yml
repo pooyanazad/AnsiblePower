@@ -15,21 +15,23 @@ jobs:
 
   unit-tests:
     name: Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: "3.12"
           cache: pip
-          cache-dependency-path: requirements-dev.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
       - run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
       - name: Run unit tests
         run: |
           mkdir -p reports
-          pytest tests/test_unit.py tests/test_auth.py tests/test_inventory_security.py -v --tb=short \
+          pytest tests/test_unit.py tests/test_auth.py tests/test_inventory_security.py tests/test_ci_summary.py -v --tb=short \
             --junitxml=reports/unit-results.xml \
             --cov=ansiblePower --cov-report=term-missing \
             --cov-fail-under=40
@@ -43,14 +45,16 @@ jobs:
 
   quality-tests:
     name: Quality Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: "3.12"
           cache: pip
-          cache-dependency-path: requirements-dev.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
       - run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
@@ -70,14 +74,16 @@ jobs:
 
   smoke-tests:
     name: Smoke Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: "3.12"
           cache: pip
-          cache-dependency-path: requirements-dev.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
       - run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
@@ -97,14 +103,16 @@ jobs:
 
   live-tests:
     name: Live App Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: "3.12"
           cache: pip
-          cache-dependency-path: requirements-dev.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
       - run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
@@ -124,10 +132,11 @@ jobs:
   # ── One clean summary table; fails if any suite failed (blocks release) ────
   test-summary:
     name: Test Results
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [unit-tests, quality-tests, smoke-tests, live-tests]
     if: always()
     steps:
+      - uses: actions/checkout@v4
       - name: Download reports
         uses: actions/download-artifact@v4
         with:
@@ -135,68 +144,15 @@ jobs:
         continue-on-error: true
 
       - name: Write summary table
-        run: |
-          python - <<'EOF'
-          import xml.etree.ElementTree as ET, os, glob, sys
-
-          sp = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")
-
-          suites = [
-              ("unit",    "Unit Tests"),
-              ("quality", "Quality Tests"),
-              ("smoke",   "Smoke Tests"),
-              ("live",    "Live App Tests"),
-          ]
-
-          rows = []
-          grand = dict(t=0, p=0, f=0, e=0, s=0, d=0.0)
-          any_fail = False
-
-          for key, label in suites:
-              xmls = glob.glob(f"reports/**/{key}-results.xml", recursive=True)
-              if not xmls:
-                  rows.append(f"| {label} | ⚠️ — | — | — | — | — | — |")
-                  any_fail = True
-                  continue
-              try:
-                  root = ET.parse(xmls[0]).getroot()
-                  if root.tag == "testsuites":
-                      root = root[0]
-                  t  = int(root.get("tests",    0))
-                  f  = int(root.get("failures",  0))
-                  e  = int(root.get("errors",    0))
-                  sk = int(root.get("skipped",   0))
-                  p  = t - f - e - sk
-                  d  = float(root.get("time",    0))
-                  st = "✅" if (f + e) == 0 else "❌"
-                  if (f + e): any_fail = True
-                  rows.append(f"| {label} | {st} | {t} | {p} | {f} | {e} | {d:.1f}s |")
-                  grand["t"] += t; grand["p"] += p; grand["f"] += f
-                  grand["e"] += e; grand["s"] += sk; grand["d"] += d
-              except Exception as ex:
-                  rows.append(f"| {label} | ⚠️ parse error | — | — | — | — | — |")
-                  any_fail = True
-
-          ok = not any_fail
-          badge = "✅ All passed — ready to release" if ok else "❌ Some failed — release blocked"
-
-          with open(sp, "a") as out:
-              out.write(f"# Pre-Release Test Results — {badge}\n\n")
-              out.write("| Suite | Result | Total | Passed | Failed | Errors | Time |\n")
-              out.write("|---|:---:|---:|---:|---:|---:|---:|\n")
-              for r in rows:
-                  out.write(r + "\n")
-              out.write(f"| **Total** | {'✅' if ok else '❌'} | **{grand['t']}** | **{grand['p']}** | **{grand['f']}** | **{grand['e']}** | **{grand['d']:.1f}s** |\n")
-
-          if any_fail:
-              sys.exit(1)
-          EOF
+        env:
+          TEST_JOB_RESULTS: ${{ toJSON(needs) }}
+        run: python .github/scripts/summarize_tests.py
 
   # ── Only runs when all tests pass ─────────────────────────────────────────
   release:
     name: Create Release
     needs: test-summary
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
