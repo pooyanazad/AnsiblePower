@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>Sign in · AnsiblePower</title>
+</head>
+<body>
+  <main>
+    <h1>Sign in to AnsiblePower</h1>
+    {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+    <form method="post" action="{{ url_for('login') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <p><label>Username <input name="username" autocomplete="username" maxlength="64" required autofocus></label></p>
+      <p><label>Password <input type="password" name="password" autocomplete="current-password" maxlength="1024" required></label></p>
+      <button type="submit">Sign in</button>
+    </form>
+  </main>
+</body>
+</html>

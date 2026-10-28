@@ -7,7 +7,9 @@ import shutil
 import subprocess
 import psutil
 import csv
-from datetime import datetime
+from datetime import datetime, timedelta
+import click
+import auth
 from io import StringIO
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Response, Blueprint
 from flask_wtf.csrf import CSRFProtect
@@ -62,8 +64,32 @@ def _find_ansible_playbook():
 
 ANSIBLE_PLAYBOOK = _find_ansible_playbook()
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(24).hex())
+app.config["AUTH_DATABASE"] = os.environ.get("ANSIBLEPOWER_AUTH_DATABASE", os.path.join(BASE_DIR, "data", "auth.db"))
+app.secret_key = os.environ.get("FLASK_SECRET_KEY") or auth.signing_key(app.config["AUTH_DATABASE"])
+if app.secret_key.lower().startswith("changeme"):
+    raise RuntimeError("Replace the example FLASK_SECRET_KEY or leave it unset to generate a persistent key.")
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true",
+    PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),
+    SESSION_REFRESH_EACH_REQUEST=False,
+)
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
+
+
+@app.before_request
+def require_authentication():
+    """Protect all routes by default, including future operational endpoints."""
+    if request.endpoint in {"main.health", "login"} or request.endpoint is None:
+        return None
+    if auth.valid_session(app.config["AUTH_DATABASE"], session.get("auth_token")):
+        return None
+    session.clear()
+    if request.method == "GET" and request.path in {"/", "/history/", "/settings/"} and not request.accept_mimetypes.best == "application/json":
+        return redirect(url_for("login"))
+    return jsonify({"error": "Authentication required"}), 401
+
 
 csrf = CSRFProtect(app)
 
@@ -76,6 +102,43 @@ limiter = Limiter(
     default_limits=["60 per minute"],
     storage_uri="memory://",
 )
+
+
+@app.cli.command("create-admin")
+@click.option("--username", prompt=True)
+@click.password_option()
+def create_admin(username, password):
+    """Set up the administrator locally; no public account registration."""
+    try:
+        auth.create_admin(app.config["AUTH_DATABASE"], username, password)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo("Administrator created. Sign in at /login.")
+
+
+@app.route("/login", methods=["GET", "POST"])
+@limiter.limit("5 per minute", methods=["POST"])
+def login():
+    error = None
+    if request.method == "POST":
+        username = request.form.get("username", "")
+        password = request.form.get("password", "")
+        if len(username) <= 64 and len(password) <= 1024 and auth.authenticate(app.config["AUTH_DATABASE"], username, password):
+            auth.end_session(app.config["AUTH_DATABASE"], session.get("auth_token"))
+            session.clear()  # Rotate the CSRF token as well as the login session.
+            session.permanent = True
+            session["auth_token"] = auth.start_session(
+                app.config["AUTH_DATABASE"], app.permanent_session_lifetime.total_seconds())
+            return redirect(url_for("main.homepage"))
+        error = "Invalid username or password."
+    return render_template("login.html", error=error), 401 if error else 200
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    auth.end_session(app.config["AUTH_DATABASE"], session.get("auth_token"))
+    session.clear()
+    return redirect(url_for("login"))
 
 
 def _validate_playbook_path(name):
@@ -478,6 +541,7 @@ def set_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Content-Security-Policy"] = CSP_POLICY
+    response.headers["Cache-Control"] = "no-store"
     return response
 
 def _wants_json():

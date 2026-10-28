@@ -63,11 +63,13 @@ If you need a simple, fast way to run playbooks from a browser — without setti
 ```bash
 git clone https://github.com/pooyanazad/AnsiblePower.git
 cd AnsiblePower
-cp .env.example .env        # edit .env to set your FLASK_SECRET_KEY
+cp .env.example .env
 docker compose up -d
+docker compose exec ansiblepower flask --app ansiblePower create-admin
 ```
 
-Open [http://localhost:5000](http://localhost:5000) — done.
+Choose an administrator username and a password of at least 12 characters when prompted,
+then sign in at [http://localhost:5000](http://localhost:5000).
 
 <details>
 <summary><strong>Volume mounts</strong></summary>
@@ -89,10 +91,11 @@ Data persists across `docker compose down && up`.
 git clone https://github.com/pooyanazad/AnsiblePower.git
 cd AnsiblePower
 pip install -r requirements.txt
+flask --app ansiblePower create-admin
 python ansiblePower.py
 ```
 
-Open [http://localhost:5000](http://localhost:5000) and you're ready to go.
+Sign in at [http://localhost:5000](http://localhost:5000) using the administrator you created.
 
 > **Requirements:** Python 3.9+, Ansible installed and accessible via `ansible-playbook`
 
@@ -191,11 +194,21 @@ AnsiblePower works out of the box. You can customize it through the Settings pag
 
 | Environment Variable | Default | Description |
 |---|---|---|
-| `FLASK_SECRET_KEY` | Auto-generated | Session encryption key |
+| `FLASK_SECRET_KEY` | Persisted random key | Cookie signing key; leave blank to store a shared key in `data/auth.db` |
+| `SESSION_COOKIE_SECURE` | `false` | Set `true` when serving over HTTPS |
 | `FLASK_DEBUG` | `false` | Enable Flask debug mode |
 | `ANSIBLE_PLAYBOOK_BIN` | Auto-detected | Path to `ansible-playbook` binary |
 
 Playbooks directory and hosts file path can be changed from **Settings** in the web UI.
+
+Administrator setup runs locally through the CLI and cannot replace an existing account.
+Passwords are hashed with PBKDF2-SHA256; credentials, the generated signing key, and hashed
+session tokens live in `data/auth.db` (created with owner-only permissions). Keep `data/`
+private and persistent, including across Gunicorn workers. All operational pages, actions,
+and exports require login. `/health` exposes only liveness, and `/login` accepts CSRF-protected
+credentials. Sessions expire after 30 minutes even while active; signing out revokes the
+session on the server. Serve deployments over HTTPS and enable secure cookies. Fine-grained
+roles are deferred to task 62; the initial account is an administrator.
 
 ---
 

@@ -19,11 +19,22 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import ansiblePower  # noqa: E402  (must come after sys.path manipulation)
 import utils  # noqa: E402
+import auth  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
 # Low-level helpers
 # ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def isolated_auth(tmp_path, monkeypatch):
+    """Never use deployed credentials or leak application settings between tests."""
+    monkeypatch.setitem(ansiblePower.app.config, "AUTH_DATABASE", str(tmp_path / "auth.db"))
+    monkeypatch.setitem(ansiblePower.app.config, "TESTING", True)
+    monkeypatch.setitem(ansiblePower.app.config, "WTF_CSRF_ENABLED", False)
+    monkeypatch.setitem(ansiblePower.app.config, "SESSION_COOKIE_SECURE", False)
+    ansiblePower.limiter.reset()
+
 
 @pytest.fixture()
 def tmp_data_dir():
@@ -102,6 +113,8 @@ def flask_client(patched_paths):
     ansiblePower.app.config["WTF_CSRF_ENABLED"] = False
 
     with ansiblePower.app.test_client() as client:
+        with client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(ansiblePower.app.config["AUTH_DATABASE"], 1800)
         yield client
 
 

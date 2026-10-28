@@ -7,6 +7,7 @@ from io import BytesIO, StringIO
 from unittest.mock import patch, mock_open
 
 # Add parent directory to path to import ansiblePower
+import auth
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import utils
@@ -170,6 +171,9 @@ class TestUpdatePlaybooksDirSecurity(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.client = self.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
     def _post(self, path):
         return self.client.post(
@@ -218,6 +222,9 @@ class TestSecurityHeaders(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.client = self.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
     def _assert_security_headers(self, response):
         self.assertEqual(response.headers.get("X-Frame-Options"), "DENY")
@@ -275,6 +282,9 @@ class TestRunPlaybookValid(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.client = self.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
         self.ansiblePower = ansiblePower
 
         import tempfile
@@ -345,6 +355,9 @@ class TestRunPlaybookFailure(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.client = self.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
         self.ansiblePower = ansiblePower
 
         import tempfile
@@ -411,6 +424,9 @@ class TestRunPlaybookTimeout(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.client = self.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
         import tempfile
         self._tmp = tempfile.mkdtemp(prefix="ap_test29_")
@@ -472,6 +488,9 @@ class TestHealthEndpoint(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.client = self.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
     def test_health_returns_200(self):
         """GET /health must respond 200 OK."""
@@ -498,6 +517,9 @@ class TestStandardizedErrorResponses(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.client = self.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
     def _json_headers(self):
         return {"Accept": "application/json"}
@@ -564,6 +586,9 @@ class TestImportHistory(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.client = self.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
         # Isolate save_history so tests don't modify or wipe persistent test data
         self.patcher_save = patch("ansiblePower.save_history")
@@ -800,6 +825,9 @@ class TestHistoryExport(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.client = self.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
         self.sample_records = [
             {
@@ -903,6 +931,9 @@ class TestHistoryRowColorCoding(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.client = self.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
     def _get_history_html(self, output_text):
         """Patch load_history to return a single record, then GET /history/."""
@@ -955,6 +986,9 @@ class TestColorCodedOutputEndpoint(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.client = self.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
         import tempfile
         self._tmp = tempfile.mkdtemp(prefix="ap_test53_")
@@ -1023,6 +1057,9 @@ class TestSettingsUpdatePlaybooksDir(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.client = self.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
         import tempfile
         self._tmp = tempfile.mkdtemp(prefix="ap_t61_pbdir_")
@@ -1096,6 +1133,9 @@ class TestSettingsUpdateHostsFile(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.client = self.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
         import tempfile
         self._tmp = tempfile.mkdtemp(prefix="ap_t61_hosts_")
@@ -1175,6 +1215,9 @@ class TestSettingsSaveHosts(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.client = self.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
         import tempfile
         self._tmp = tempfile.mkdtemp(prefix="ap_t61_save_")
@@ -1244,6 +1287,9 @@ class TestSettingsSystemStatus(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.client = self.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
     def test_system_status_returns_cpu_and_memory(self):
         """GET /settings/system_status must return cpu and memory keys."""
@@ -1281,6 +1327,9 @@ class TestToggleDarkModeRemoved(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.client = self.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
     def test_toggle_dark_mode_endpoint_does_not_exist(self):
         """POST /settings/toggle_dark_mode must return 404 (endpoint removed in task 37)."""
@@ -1300,6 +1349,9 @@ class TestDeleteHistory(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.client = self.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
         import tempfile
         self._tmp = tempfile.mkdtemp(prefix="ap_t60_del_")
@@ -1429,6 +1481,9 @@ class TestSettingsTabs(unittest.TestCase):
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.client = self.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
     def test_settings_page_contains_four_tabs(self):
         """GET /settings/ must render Hosts, System, Paths, and Data Management tabs."""
@@ -1477,6 +1532,9 @@ class TestErrorHandlers(unittest.TestCase):
         self.app = ansiblePower.app
         self.app.config["TESTING"] = True
         self.client = self.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
     def test_413_errorhandler_returns_json(self):
         """HTTP 413 errorhandler must return JSON format with an error description (task 67)."""

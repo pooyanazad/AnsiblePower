@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     import ansiblePower
+    import auth
     import utils
 except ImportError as e:
     print(f"Error importing ansiblePower: {e}")
@@ -62,6 +63,9 @@ class SmokeTestAnsiblePower(unittest.TestCase):
         ansiblePower.app.config['TESTING'] = True
         ansiblePower.app.config['WTF_CSRF_ENABLED'] = False
         self.client = ansiblePower.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
     def tearDown(self):
         """Clean up after each test method."""

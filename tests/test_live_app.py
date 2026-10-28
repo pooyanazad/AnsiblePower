@@ -1,11 +1,57 @@
 import requests
 from bs4 import BeautifulSoup
 import time
+import threading
+import pytest
+from werkzeug.serving import make_server
+
+import ansiblePower
+import auth
 
 BASE_URL = "http://localhost:5000"
 
 # Use a session so cookies (session cookie) persist between requests
 session = requests.Session()
+
+
+@pytest.fixture(autouse=True)
+def live_server(isolated_auth):
+    """Serve an isolated copy over real HTTP, including the login flow."""
+    import tempfile
+    import json
+    import os
+    import utils
+
+    global BASE_URL, session
+    with tempfile.TemporaryDirectory() as base, pytest.MonkeyPatch.context() as monkeypatch:
+        config = os.path.join(base, "config.json")
+        hosts = os.path.join(base, "hosts")
+        with open(hosts, "w") as stream:
+            stream.write("[local]\nlocalhost ansible_connection=local\n")
+        with open(config, "w") as stream:
+            json.dump({"playbooks_dir": ansiblePower.DEFAULT_PLAYBOOKS_DIR, "hosts_file": hosts}, stream)
+        monkeypatch.setattr(utils, "CONFIG_FILE", config)
+        monkeypatch.setattr(utils, "HISTORY_FILE", os.path.join(base, "history.json"))
+        monkeypatch.setitem(ansiblePower.app.config, "AUTH_DATABASE", os.path.join(base, "auth.db"))
+        monkeypatch.setitem(ansiblePower.app.config, "WTF_CSRF_ENABLED", True)
+        monkeypatch.setitem(ansiblePower.app.config, "SESSION_COOKIE_SECURE", False)
+        auth.create_admin(ansiblePower.app.config["AUTH_DATABASE"], "admin", "live test password")
+        server = make_server("127.0.0.1", 0, ansiblePower.app)
+        BASE_URL = f"http://127.0.0.1:{server.server_port}"
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        session = requests.Session()
+        try:
+            assert session.get(f"{BASE_URL}/history/export_history").status_code == 401
+            token = get_csrf_token()
+            response = session.post(f"{BASE_URL}/login", data={
+                "username": "admin", "password": "live test password", "csrf_token": token})
+            assert response.status_code == 200
+            yield
+        finally:
+            session.close()
+            server.shutdown()
+            thread.join(timeout=5)
 
 def get_csrf_token():
     """Fetch the CSRF token from the homepage meta tag."""
@@ -88,5 +134,4 @@ def test_endpoints():
     print("All functional and GUI tests passed successfully!")
 
 if __name__ == "__main__":
-    test_homepage()
-    test_endpoints()
+    raise SystemExit(pytest.main([__file__, "-v"]))

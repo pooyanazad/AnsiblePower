@@ -11,7 +11,8 @@ services:
       - ./logs:/app/logs
       - ~/.ssh:/home/appuser/.ssh:ro
     environment:
-      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-changeme-in-production}
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-}
+      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-false}
       - FLASK_DEBUG=${FLASK_DEBUG:-false}
       - ANSIBLE_PLAYBOOK_BIN=${ANSIBLE_PLAYBOOK_BIN:-ansible-playbook}
     restart: unless-stopped

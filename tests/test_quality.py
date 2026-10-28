@@ -6,6 +6,7 @@ import tempfile
 import shutil
 
 # Add parent directory to path to import ansiblePower
+import auth
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import ansiblePower
@@ -48,6 +49,9 @@ class TestFlaskRoutes(unittest.TestCase):
         ansiblePower.app.config["TESTING"] = True
         ansiblePower.app.config["WTF_CSRF_ENABLED"] = False
         self.client = ansiblePower.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
     def tearDown(self):
         utils.CONFIG_FILE = self.original_config
@@ -157,6 +161,9 @@ class TestStandardizedApiResponses(unittest.TestCase):
         ansiblePower.app.config["TESTING"] = True
         ansiblePower.app.config["WTF_CSRF_ENABLED"] = False
         self.client = ansiblePower.app.test_client()
+        with self.client.session_transaction() as login_session:
+            login_session["auth_token"] = auth.start_session(
+                ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
     def tearDown(self):
         self._utils.CONFIG_FILE  = self._orig_config

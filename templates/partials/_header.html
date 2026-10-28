@@ -25,6 +25,12 @@
       </ul>
       <ul class="navbar-nav ml-auto">
         <li class="nav-item">
+          <form method="post" action="{{ url_for('logout') }}" class="mr-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-light btn-sm mt-1">Sign out</button>
+          </form>
+        </li>
+        <li class="nav-item">
           <!-- Icon and label are updated by JS based on localStorage (task 37) -->
           <button id="toggle-dark-mode" class="btn btn-outline-light btn-sm mt-1">
             <i id="dark-mode-icon" class="fas fa-moon"></i>
