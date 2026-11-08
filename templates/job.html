@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Run {{ job.id }} — AnsiblePower{% endblock %}
+{% block content %}
+<div class="mt-4" id="job-detail" data-status-url="{{ url_for('main.job_status', job_id=job.id) }}">
+    <h1>{{ job.playbook }}</h1>
+    <p>Run <code>{{ job.id }}</code> · <strong id="job-state">{{ job.state }}</strong></p>
+    <p>You can leave this page and return to this URL to check the result.</p>
+    <pre id="job-output" class="playbook-output">{{ job.output }}</pre>
+    <p><a href="{{ url_for('settings.settings') }}">Repair configuration in Settings</a> ·
+       <a href="{{ url_for('main.homepage') }}">Back to playbooks</a></p>
+    <form id="job-review" method="post" action="{{ url_for('main.acknowledge_job', job_id=job.id) }}" {% if job.state != 'uncertain' %}hidden{% endif %}>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <p>The result is uncertain. This run will not be replayed. Check the affected hosts before starting another run.</p>
+        <label><input type="checkbox" name="hosts_checked" value="yes" required> I checked the affected hosts.</label>
+        <button class="btn btn-warning" type="submit">Acknowledge result</button>
+    </form>
+</div>
+{% endblock %}

@@ -54,9 +54,9 @@ def test_setup_rejects_short_password(client):
                                   if r.endpoint not in {"login", "main.health"}])
 def test_every_route_requires_identity_even_with_valid_csrf(client, rule):
     token = csrf_token(client)
-    path = rule.rule.replace("<int:record_id>", "1").replace("<path:filename>", "js/main.js")
+    path = rule.rule.replace("<int:record_id>", "1").replace("<path:filename>", "js/main.js").replace("<job_id>", "test-job")
     method = "POST" if "POST" in rule.methods else "GET"
-    with patch("ansiblePower.subprocess.check_output") as run, patch("ansiblePower.load_history") as history:
+    with patch("jobs.enqueue") as run, patch("ansiblePower.load_history") as history:
         response = client.open(path, method=method, headers={"Accept": "application/json", "X-CSRFToken": token})
     assert response.status_code == 401, path
     run.assert_not_called()

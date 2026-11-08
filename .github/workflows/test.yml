@@ -30,7 +30,7 @@ jobs:
       - name: Run unit tests
         run: |
           mkdir -p reports
-          pytest tests/test_unit.py tests/test_auth.py tests/test_inventory_security.py tests/test_ci_summary.py -v --tb=short \
+          pytest tests/test_unit.py tests/test_auth.py tests/test_inventory_security.py tests/test_jobs.py tests/test_ci_summary.py -v --tb=short \
             --junitxml=reports/unit-results.xml \
             --cov=ansiblePower --cov-report=term-missing \
             --cov-fail-under=40
@@ -118,7 +118,7 @@ jobs:
       - name: Run live app tests
         run: |
           mkdir -p reports
-          pytest tests/test_live_app.py -v --tb=short \
+          pytest tests/test_live_app.py tests/test_worker_lifecycle.py -v --tb=short \
             --junitxml=reports/live-results.xml
       - name: Save report
         if: always()

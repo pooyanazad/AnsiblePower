@@ -4,6 +4,16 @@
 {% block content %}
 <div class="mt-4">
     <h1>Playbooks</h1>
+    {% if jobs %}
+    <details class="mb-3">
+        <summary>Recent runs</summary>
+        <ul>
+        {% for job in jobs %}
+            <li><a href="{{ url_for('main.job_page', job_id=job.id) }}">{{ job.playbook }} · {{ job.state }} · {{ job.created_at }}</a></li>
+        {% endfor %}
+        </ul>
+    </details>
+    {% endif %}
     {% if error %}
       <div class="alert alert-danger" role="alert">
           {{ error }}

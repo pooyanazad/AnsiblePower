@@ -53,6 +53,13 @@ logger.addHandler(_log_handler)
 # Config helpers
 # =============================================================================
 
+def find_ansible_playbook():
+    """Respect an override, then prefer the project venv and the system PATH."""
+    if os.environ.get("ANSIBLE_PLAYBOOK_BIN"):
+        return os.environ["ANSIBLE_PLAYBOOK_BIN"]
+    venv_bin = os.path.join(BASE_DIR, "venv", "bin", "ansible-playbook")
+    return venv_bin if os.path.isfile(venv_bin) else shutil.which("ansible-playbook") or "ansible-playbook"
+
 def load_config():
     """Load and return the application configuration dictionary."""
     if os.path.exists(CONFIG_FILE):

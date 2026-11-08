@@ -11,6 +11,8 @@ import pytest
 import ansiblePower
 import inventory
 import utils
+import worker
+import jobs
 
 
 def configure(paths, target):
@@ -19,7 +21,7 @@ def configure(paths, target):
 
 def assert_blocked_at_use(client, target):
     before = Path(target).read_bytes()
-    with patch("ansiblePower.subprocess.check_output") as execute:
+    with patch("worker.run_command") as execute:
         assert client.get("/settings/get_hosts").status_code == 400
         assert client.post("/settings/save_hosts", data={"content": "OVERWRITTEN"}).status_code == 400
         assert client.post("/run_playbook", data={"playbook": "sample.yml"}).status_code == 400
@@ -118,7 +120,7 @@ def test_malformed_persisted_paths_fail_closed(flask_client, patched_paths, bad_
     config = utils.load_config()
     config["hosts_file"] = bad_value
     utils.save_config(config)
-    with patch("ansiblePower.subprocess.check_output") as execute:
+    with patch("worker.run_command") as execute:
         for method, route, data in [("GET", "/settings/get_hosts", {}),
                                     ("POST", "/settings/save_hosts", {"content": "x"}),
                                     ("POST", "/run_playbook", {"playbook": "sample.yml"})]:
@@ -128,7 +130,7 @@ def test_malformed_persisted_paths_fail_closed(flask_client, patched_paths, bad_
 
 def test_missing_inventory_does_not_fall_back_to_local_execution(flask_client, patched_paths):
     configure(patched_paths, Path(inventory.INVENTORY_DIR) / "missing.ini")
-    with patch("ansiblePower.subprocess.check_output") as execute:
+    with patch("worker.run_command") as execute:
         assert flask_client.post("/run_playbook", data={"playbook": "sample.yml"}).status_code == 404
     execute.assert_not_called()
 
@@ -145,19 +147,20 @@ def test_select_edit_read_and_run_a_valid_inventory(flask_client, patched_paths)
     private = Path(patched_paths["base"]) / "secret"
     private.write_bytes(b"untouched")
 
-    def execute(cmd, **kwargs):
+    def execute(cmd, descriptors, timeout):
         snapshot = cmd[cmd.index("-i") + 1]
         assert snapshot != str(selected) and snapshot.endswith(".yaml")
-        assert len(kwargs["pass_fds"]) == 1
+        assert len(descriptors) == 1
         assert Path(snapshot).read_text() == content
         assert (Path(snapshot).parent / "group_vars").is_dir()
         selected.unlink()
         selected.symlink_to(private)
         assert Path(snapshot).read_text() == content
-        return b"ok: safe inventory snapshot"
+        return "succeeded", "ok: safe inventory snapshot"
 
-    with patch("ansiblePower.subprocess.check_output", side_effect=execute) as run:
-        assert flask_client.post("/run_playbook", data={"playbook": "sample.yml"}).status_code == 200
+    with patch("worker.run_command", side_effect=execute) as run:
+        assert flask_client.post("/run_playbook", data={"playbook": "sample.yml"}).status_code == 202
+        worker.run_one(utils.get_history_db_file(), "ansible-playbook")
     run.assert_called_once()
     assert private.read_bytes() == b"untouched"
     assert not list(Path(inventory.INVENTORY_DIR).glob(".ansiblepower-run-*"))
@@ -254,7 +257,7 @@ def test_failed_migration_config_save_preserves_original_and_can_retry(migration
 
 
 def test_real_ansible_parses_yaml_snapshot_and_adjacent_vars(tmp_path):
-    executable = Path(ansiblePower.ANSIBLE_PLAYBOOK).with_name("ansible-inventory")
+    executable = Path(utils.find_ansible_playbook()).with_name("ansible-inventory")
     binary = str(executable) if executable.is_file() else shutil.which("ansible-inventory")
     if not binary:
         pytest.skip("Ansible is not installed; snapshot behavior is also covered with subprocess tests")
@@ -288,7 +291,7 @@ def test_invalid_or_empty_inventory_blocks_launch_with_repair(flask_client, patc
     selected = Path(inventory.INVENTORY_DIR) / name
     selected.write_text(content)
     configure(patched_paths, selected)
-    with patch("ansiblePower.subprocess.check_output") as run:
+    with patch("worker.run_command") as run:
         response = flask_client.post("/run_playbook", data={"playbook": "sample.yml"})
     assert response.status_code == 400
     assert response.json["repair"]["url"] == "/settings/"
@@ -299,7 +302,7 @@ def test_unreadable_inventory_blocks_launch(flask_client, patched_paths):
     selected = Path(utils.HOSTS_FILE)
     selected.chmod(0)
     try:
-        with patch("ansiblePower.subprocess.check_output") as run:
+        with patch("worker.run_command") as run:
             response = flask_client.post("/run_playbook", data={"playbook": "sample.yml"})
         assert response.status_code == 403
         assert response.json["repair"]["url"] == "/settings/"
@@ -310,18 +313,35 @@ def test_unreadable_inventory_blocks_launch(flask_client, patched_paths):
 
 def test_local_execution_must_be_selected_explicitly(flask_client, patched_paths):
     configure(patched_paths, Path(inventory.INVENTORY_DIR) / "missing-production.ini")
-    with patch("ansiblePower.subprocess.check_output", return_value=b"local run") as run:
+    with patch("worker.run_command", return_value=("succeeded", "local run")) as run:
         assert flask_client.post("/run_playbook", data={"playbook": "sample.yml"}).status_code == 404
         run.assert_not_called()
         response = flask_client.post("/run_playbook", data={"playbook": "sample.yml", "execution_mode": "local"})
-    assert response.status_code == 200
+        worker.run_one(utils.get_history_db_file(), "ansible-playbook")
+    assert response.status_code == 202
     command = run.call_args.args[0]
     assert command[command.index("-i") + 1] == "localhost,"
     assert "--connection=local" in command
 
 
 def test_invalid_execution_mode_is_rejected(flask_client):
-    with patch("ansiblePower.subprocess.check_output") as run:
+    with patch("worker.run_command") as run:
         response = flask_client.post("/run_playbook", data={"playbook": "sample.yml", "execution_mode": "fallback"})
     assert response.status_code == 400
     run.assert_not_called()
+
+
+def test_yaml_inventory_without_extension_is_supported():
+    selected = Path(inventory.INVENTORY_DIR) / "hosts"
+    selected.write_text("all:\n  hosts:\n    production.example.test: {}\n")
+    with inventory.for_run(str(selected)) as (snapshot, _):
+        assert inventory.inspect_snapshot(snapshot) == ["production.example.test"]
+
+
+def test_restart_does_not_recreate_missing_selected_inventory(migration):
+    _, hosts, config = migration
+    hosts.parent.mkdir()
+    config.write_text(json.dumps({"hosts_file": str(hosts)}))
+    with pytest.raises(FileNotFoundError):
+        utils.init_inventory()
+    assert not hosts.exists()

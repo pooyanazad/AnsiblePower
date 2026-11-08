@@ -93,6 +93,8 @@ cd AnsiblePower
 pip install -r requirements.txt
 flask --app ansiblePower create-admin
 python ansiblePower.py
+# In another terminal, using the same virtual environment:
+python worker.py
 ```
 
 Sign in at [http://localhost:5000](http://localhost:5000) using the administrator you created.
@@ -105,12 +107,42 @@ Only hosts declared in that inventory can run; Ansible's implicit localhost is
 excluded. To intentionally run on the control node, select **Local — this control
 node** before clicking Run. A broken inventory never selects local execution.
 
+Playbook launches return **202 Accepted** with a persisted `job_id`, `url`, and
+`status_url`. Open the run URL to follow progress or find it under **Recent runs**
+after navigating away. The HTTP workers never execute playbooks.
+
+Docker runs Gunicorn and the queue consumer under Supervisor. For bare metal,
+run `worker.py` under your service manager alongside the web server; `make worker`
+starts it for local development. Both processes must use the same application
+directory and local `data/history.db` database. Back up that database together
+with your other application data. Keep it on a local filesystem, not NFS.
+
+The runner defaults to one concurrent run and a 300-second timeout. Set
+`ANSIBLEPOWER_RUN_CONCURRENCY` (1–8) and `ANSIBLEPOWER_RUN_TIMEOUT` to change these.
+If increasing the timeout, also increase Supervisor's `stopwaitsecs` beyond it.
+A second queue consumer is rejected by an exclusive lock. The queue holds up to
+100 pending or running jobs; submissions beyond that return 503.
+
+Send an `Idempotency-Key` header when retrying an API launch. Reusing the key
+returns the original job, including after it finishes; changing its inputs
+returns 409. Submissions for an already queued or running playbook and execution
+target share that job even with different keys. The browser retains a pending
+key when a response is lost. Queued inputs are checked again before execution;
+changed or missing files block the run and require a new submission after repair.
+
+On a runner crash, in-flight jobs become **uncertain** and are never replayed
+automatically. Their execution target stays blocked until an administrator checks
+the affected hosts and acknowledges the result on the run page. Jobs that were
+still queued remain available for the restarted worker. Web-worker restarts do
+not affect running playbooks.
+
 ---
 
 ## One-Command Dev Experience (Makefile)
 
 ```bash
 make run           # Start the Flask dev server (auto-reload)
+make worker        # Start the queue consumer in another terminal
 make test          # Run the full pytest test suite
 make lint          # Run flake8 on application source
 make docker-build  # Build the Docker image

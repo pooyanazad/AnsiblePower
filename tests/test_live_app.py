@@ -8,6 +8,8 @@ from werkzeug.serving import make_server
 
 import ansiblePower
 import auth
+import worker
+import utils
 
 BASE_URL = "http://localhost:5000"
 
@@ -45,12 +47,20 @@ def live_server(isolated_auth):
                          "assert 'localhost' in pathlib.Path(sys.argv[sys.argv.index('-i') + 1]).read_text()\n"
                          "print('PLAY RECAP: localhost : ok=1 changed=0 unreachable=0 failed=0')\n")
         os.chmod(runner, 0o700)
-        monkeypatch.setattr(ansiblePower, "ANSIBLE_PLAYBOOK", runner)
         auth.create_admin(ansiblePower.app.config["AUTH_DATABASE"], "admin", "live test password")
         server = make_server("127.0.0.1", 0, ansiblePower.app)
         BASE_URL = f"http://127.0.0.1:{server.server_port}"
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
+        stop_worker = threading.Event()
+
+        def consume():
+            while not stop_worker.is_set():
+                if not worker.run_one(utils.get_history_db_file(), runner):
+                    stop_worker.wait(0.05)
+
+        worker_thread = threading.Thread(target=consume, daemon=True)
+        worker_thread.start()
         session = requests.Session()
         try:
             assert session.get(f"{BASE_URL}/history/export_history").status_code == 401
@@ -61,6 +71,8 @@ def live_server(isolated_auth):
             yield
         finally:
             session.close()
+            stop_worker.set()
+            worker_thread.join(timeout=5)
             server.shutdown()
             thread.join(timeout=5)
 
@@ -104,12 +116,15 @@ def test_endpoints():
 
     # 2. Run Playbook
     res = session.post(f"{BASE_URL}/run_playbook", data={"playbook": "sample.yml"}, headers=headers)
-    assert res.status_code == 200, f"run_playbook returned {res.status_code}"
-    assert "output" in res.json(), "No output in run_playbook response"
-    assert "ok=1" in res.json()["output"]
-    
-    # Wait for history to be written
-    time.sleep(1)
+    assert res.status_code == 202, f"run_playbook returned {res.status_code}"
+    status_url = res.json()["status_url"]
+    for _ in range(100):
+        result = session.get(f"{BASE_URL}{status_url}").json()
+        if result["state"] not in {"queued", "running"}:
+            break
+        time.sleep(0.05)
+    assert result["state"] == "succeeded", result
+    assert "ok=1" in result["output"]
     
     # 3. History Page
     res = session.get(f"{BASE_URL}/history/")

@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import utils
 import ansiblePower
+import worker
 from ansiblePower import (
     get_history_db_file,
     load_config,
@@ -275,7 +276,7 @@ class TestSecurityHeaders(unittest.TestCase):
 
 
 class TestRunPlaybookValid(unittest.TestCase):
-    """Test 27 — run_playbook success: mock subprocess, verify output + history saved."""
+    """Queued playbook success: verify status and history."""
 
     def setUp(self):
         self.app = ansiblePower.app
@@ -322,14 +323,18 @@ class TestRunPlaybookValid(unittest.TestCase):
         shutil.rmtree(self._tmp, ignore_errors=True)
 
     def test_run_playbook_valid(self):
-        """Mocking subprocess.check_output: output is returned and saved in history."""
+        """Consume the accepted job and read its persisted result."""
         fake_output = b"PLAY RECAP *** ok=1 changed=0 unreachable=0 failed=0"
 
-        with patch("ansiblePower.subprocess.check_output", return_value=fake_output) as mock_sub:
+        with patch("worker.run_command", return_value=("succeeded", fake_output.decode())) as mock_sub:
             resp = self.client.post(
                 "/run_playbook",
                 data={"playbook": self._playbook_name},
             )
+            self.assertEqual(resp.status_code, 202)
+            status_url = resp.get_json()["status_url"]
+            worker.run_one(utils.get_history_db_file(), "ansible-playbook")
+            resp = self.client.get(status_url)
 
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
@@ -348,7 +353,7 @@ class TestRunPlaybookValid(unittest.TestCase):
 
 
 class TestRunPlaybookFailure(unittest.TestCase):
-    """Test 28 — run_playbook CalledProcessError: error output is returned."""
+    """Failed jobs preserve the runner output."""
 
     def setUp(self):
         self.app = ansiblePower.app
@@ -394,16 +399,18 @@ class TestRunPlaybookFailure(unittest.TestCase):
         shutil.rmtree(self._tmp, ignore_errors=True)
 
     def test_run_playbook_called_process_error(self):
-        """CalledProcessError: the error output from the exception is returned."""
-        import subprocess
+        """A failed run remains visible in status and history."""
         error_output = b"fatal: [localhost]: UNREACHABLE!"
-        exc = subprocess.CalledProcessError(returncode=2, cmd=["ansible-playbook"], output=error_output)
 
-        with patch("ansiblePower.subprocess.check_output", side_effect=exc):
+        with patch("worker.run_command", return_value=("failed", error_output.decode())):
             resp = self.client.post(
                 "/run_playbook",
                 data={"playbook": self._playbook_name},
             )
+            self.assertEqual(resp.status_code, 202)
+            status_url = resp.get_json()["status_url"]
+            worker.run_one(utils.get_history_db_file(), "ansible-playbook")
+            resp = self.client.get(status_url)
 
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
@@ -417,7 +424,7 @@ class TestRunPlaybookFailure(unittest.TestCase):
 
 
 class TestRunPlaybookTimeout(unittest.TestCase):
-    """Test 29 — run_playbook TimeoutExpired: friendly error message returned."""
+    """Timed-out jobs retain a useful result."""
 
     def setUp(self):
         self.app = ansiblePower.app
@@ -462,15 +469,17 @@ class TestRunPlaybookTimeout(unittest.TestCase):
         shutil.rmtree(self._tmp, ignore_errors=True)
 
     def test_run_playbook_timeout(self):
-        """TimeoutExpired: response must include a friendly timeout message."""
-        import subprocess
-        exc = subprocess.TimeoutExpired(cmd=["ansible-playbook"], timeout=300)
+        """Timeout output is available from the persisted status URL."""
 
-        with patch("ansiblePower.subprocess.check_output", side_effect=exc):
+        with patch("worker.run_command", return_value=("timed_out", "Playbook timed out after 300 seconds.")):
             resp = self.client.post(
                 "/run_playbook",
                 data={"playbook": self._playbook_name},
             )
+            self.assertEqual(resp.status_code, 202)
+            status_url = resp.get_json()["status_url"]
+            worker.run_one(utils.get_history_db_file(), "ansible-playbook")
+            resp = self.client.get(status_url)
 
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
@@ -1030,11 +1039,15 @@ class TestColorCodedOutputEndpoint(unittest.TestCase):
             b"PLAY RECAP **\n"
             b"localhost : ok=1 changed=0 unreachable=0 failed=0\n"
         )
-        with patch("ansiblePower.subprocess.check_output", return_value=fake_output):
+        with patch("worker.run_command", return_value=("succeeded", fake_output.decode())):
             resp = self.client.post(
                 "/run_playbook",
                 data={"playbook": self._playbook_name},
             )
+            self.assertEqual(resp.status_code, 202)
+            status_url = resp.get_json()["status_url"]
+            worker.run_one(utils.get_history_db_file(), "ansible-playbook")
+            resp = self.client.get(status_url)
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertIn("PLAY RECAP", data["output"])
@@ -1369,7 +1382,7 @@ class TestDeleteHistory(unittest.TestCase):
         self._history_patcher.start()
 
         # Seed one history record and capture its id
-        from ansiblePower import add_history_record, load_history
+        from utils import add_history_record, load_history
         add_history_record({
             "action": "run",
             "playbook": "sample.yml",
@@ -1413,7 +1426,7 @@ class TestDeleteHistory(unittest.TestCase):
 
 
 class TestAnsibleBinaryResolution(unittest.TestCase):
-    """Task 63 — test ansible binary resolution logic in _find_ansible_playbook.
+    """Task 63 — test ansible binary resolution logic in find_ansible_playbook.
 
     Tests scenarios using mocks:
     1. Environment variable override (ANSIBLE_PLAYBOOK_BIN).
@@ -1426,14 +1439,14 @@ class TestAnsibleBinaryResolution(unittest.TestCase):
         """When ANSIBLE_PLAYBOOK_BIN is set, it overrides any venv or system binary."""
         custom_bin = "/custom/opt/bin/ansible-playbook"
         with patch.dict(os.environ, {"ANSIBLE_PLAYBOOK_BIN": custom_bin}):
-            with patch("ansiblePower.os.path.isfile", return_value=True):
-                with patch("ansiblePower.shutil.which", return_value="/usr/bin/ansible-playbook"):
-                    resolved = ansiblePower._find_ansible_playbook()
+            with patch("utils.os.path.isfile", return_value=True):
+                with patch("utils.shutil.which", return_value="/usr/bin/ansible-playbook"):
+                    resolved = utils.find_ansible_playbook()
                     self.assertEqual(resolved, custom_bin)
 
     def test_venv_path_resolution(self):
         """When no env override is present, existing venv binary is preferred over system PATH."""
-        expected_venv_bin = os.path.join(ansiblePower.BASE_DIR, "venv", "bin", "ansible-playbook")
+        expected_venv_bin = os.path.join(utils.BASE_DIR, "venv", "bin", "ansible-playbook")
 
         def fake_isfile(path):
             return path == expected_venv_bin
@@ -1442,9 +1455,9 @@ class TestAnsibleBinaryResolution(unittest.TestCase):
         env_clean.pop("ANSIBLE_PLAYBOOK_BIN", None)
 
         with patch.dict(os.environ, env_clean, clear=True):
-            with patch("ansiblePower.os.path.isfile", side_effect=fake_isfile):
-                with patch("ansiblePower.shutil.which", return_value="/usr/bin/ansible-playbook"):
-                    resolved = ansiblePower._find_ansible_playbook()
+            with patch("utils.os.path.isfile", side_effect=fake_isfile):
+                with patch("utils.shutil.which", return_value="/usr/bin/ansible-playbook"):
+                    resolved = utils.find_ansible_playbook()
                     self.assertEqual(resolved, expected_venv_bin)
 
     def test_system_path_fallback(self):
@@ -1454,9 +1467,9 @@ class TestAnsibleBinaryResolution(unittest.TestCase):
         env_clean.pop("ANSIBLE_PLAYBOOK_BIN", None)
 
         with patch.dict(os.environ, env_clean, clear=True):
-            with patch("ansiblePower.os.path.isfile", return_value=False):
-                with patch("ansiblePower.shutil.which", return_value=system_bin) as mock_which:
-                    resolved = ansiblePower._find_ansible_playbook()
+            with patch("utils.os.path.isfile", return_value=False):
+                with patch("utils.shutil.which", return_value=system_bin) as mock_which:
+                    resolved = utils.find_ansible_playbook()
                     self.assertEqual(resolved, system_bin)
                     mock_which.assert_called_once_with("ansible-playbook")
 
@@ -1466,9 +1479,9 @@ class TestAnsibleBinaryResolution(unittest.TestCase):
         env_clean.pop("ANSIBLE_PLAYBOOK_BIN", None)
 
         with patch.dict(os.environ, env_clean, clear=True):
-            with patch("ansiblePower.os.path.isfile", return_value=False):
-                with patch("ansiblePower.shutil.which", return_value=None):
-                    resolved = ansiblePower._find_ansible_playbook()
+            with patch("utils.os.path.isfile", return_value=False):
+                with patch("utils.shutil.which", return_value=None):
+                    resolved = utils.find_ansible_playbook()
                     self.assertEqual(resolved, "ansible-playbook")
 
 

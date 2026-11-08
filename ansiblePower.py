@@ -3,14 +3,14 @@
 import os
 import re
 import json
-import shutil
-import subprocess
 import psutil
 import csv
-from datetime import datetime, timedelta
+from datetime import timedelta
 import click
 import auth
 import inventory
+import jobs
+import uuid
 from io import StringIO
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Response, Blueprint
 from flask_wtf.csrf import CSRFProtect
@@ -38,7 +38,6 @@ from utils import (
     init_history_db,
     load_history,
     save_history,
-    add_history_record,
     delete_history_record,
 )
 
@@ -48,23 +47,6 @@ _PLAYBOOK_FILENAME_RE = re.compile(r'^[a-zA-Z0-9_.\-]+\.(?:yml|yaml)$')
 # Dangerous top-level paths forbidden as the playbooks directory (closes #18)
 _DANGEROUS_DIR_PREFIXES = ("/etc", "/proc", "/sys")
 
-# Resolve ansible-playbook: prefer the venv binary, then system PATH, then env override
-def _find_ansible_playbook():
-    # 1. Respect explicit environment override
-    env_override = os.environ.get("ANSIBLE_PLAYBOOK_BIN")
-    if env_override:
-        return env_override
-    # 2. Check venv next to this file (most common dev setup)
-    venv_bin = os.path.join(BASE_DIR, "venv", "bin", "ansible-playbook")
-    if os.path.isfile(venv_bin):
-        return venv_bin
-    # 3. Fall back to whatever is on PATH
-    system_bin = shutil.which("ansible-playbook")
-    if system_bin:
-        return system_bin
-    return "ansible-playbook"  # will raise a clear error at runtime
-
-ANSIBLE_PLAYBOOK = _find_ansible_playbook()
 app = Flask(__name__)
 app.config["AUTH_DATABASE"] = os.environ.get("ANSIBLEPOWER_AUTH_DATABASE", os.path.join(BASE_DIR, "data", "auth.db"))
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or auth.signing_key(app.config["AUTH_DATABASE"])
@@ -193,6 +175,7 @@ history_bp = Blueprint('history', __name__, url_prefix='/history')
 settings_bp = Blueprint('settings', __name__, url_prefix='/settings')
 
 @main_bp.route("/health")
+@limiter.exempt
 def health():
     return jsonify({"status": "ok"})
 
@@ -218,7 +201,7 @@ def homepage():
             playbooks = []
             error = "An error occurred while accessing the playbooks directory."
 
-    return render_template("index.html", playbooks=playbooks,
+    return render_template("index.html", playbooks=playbooks, jobs=jobs.recent(),
                            error=error, prompt_for_dir=prompt_for_dir, playbooks_dir=playbooks_dir)
 
 @main_bp.route("/run_playbook", methods=["POST"])
@@ -236,43 +219,62 @@ def run_playbook():
     execution_mode = request.form.get("execution_mode", "inventory")
     if execution_mode not in {"inventory", "local"}:
         return jsonify({"error": "Select Inventory or Local execution"}), 400
-    cmd = [ANSIBLE_PLAYBOOK, playbook_path]
-
+    submission_key = request.headers.get("Idempotency-Key") or request.form.get("submission_id") or uuid.uuid4().hex
+    if len(submission_key) > 128:
+        return jsonify({"error": "Submission key must be at most 128 characters"}), 400
     try:
-        if execution_mode == "local":
-            output = subprocess.check_output(cmd + ["-i", "localhost,", "--connection=local", "--limit", "localhost"],
-                                             stderr=subprocess.STDOUT, timeout=300)
-        else:
+        with open(playbook_path, "rb") as source:
+            playbook_digest = jobs.digest(source.read())
+        spec = {"playbook": playbook_name, "playbook_path": os.path.realpath(playbook_path),
+                "playbook_digest": playbook_digest, "execution_mode": execution_mode}
+        if execution_mode == "inventory":
             hosts_file = get_hosts_file()
             with inventory.for_run(hosts_file) as (snapshot, descriptor):
-                hosts = inventory.inspect_snapshot(snapshot)
-                # Exclude implicit localhost: only explicitly inventoried hosts
-                # can match a play, even when it asks for localhost directly.
-                output = subprocess.check_output(cmd + ["-i", snapshot, "--limit", ",".join(hosts)],
-                                                 stderr=subprocess.STDOUT, timeout=300, pass_fds=(descriptor,))
-        output = output.decode("utf-8")
+                inventory.inspect_snapshot(snapshot)
+                with open(snapshot, "rb") as source:
+                    spec.update(inventory_path=hosts_file, inventory_digest=jobs.digest(source.read()))
     except (ValueError, OSError) as e:
         return _inventory_error(e)
-    except subprocess.CalledProcessError as e:
-        # Even if the play fails (e.g. unreachable host), record the output.
-        output = e.output.decode("utf-8")
-    except subprocess.TimeoutExpired:
-        logger.warning("Playbook %s timed out after 300 seconds", playbook_name)
-        output = "⏱ Playbook timed out after 5 minutes (300 s). The process was killed.\nCheck your inventory and connection settings, or increase the timeout."
-    except Exception as e:
-        logger.exception("Unexpected error running playbook %s", playbook_name)
-        output = "Unexpected error occurred: " + str(e)
-    if not output.strip():
-        output = "No output produced."
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    add_history_record({
-        "action": "run",
-        "playbook": playbook_name,
-        "output": output,
-        "time": timestamp
-    })
-    logger.info("Recorded playbook run: %s", playbook_name)
-    return jsonify({"output": output})
+    try:
+        job, created = jobs.enqueue(spec, submission_key)
+    except jobs.SubmissionConflict as exc:
+        return jsonify({"error": str(exc)}), 409
+    except jobs.QueueFull as exc:
+        return jsonify({"error": str(exc)}), 503
+    job_url = url_for("main.job_page", job_id=job["id"])
+    response = jsonify({"job_id": job["id"], "url": job_url,
+                        "status_url": url_for("main.job_status", job_id=job["id"]),
+                        "state": job["state"], "duplicate": not created})
+    response.headers["Location"] = job_url
+    return response, 202
+
+
+@main_bp.route("/jobs/<job_id>")
+def job_page(job_id):
+    job = jobs.get(job_id)
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+    return render_template("job.html", job=job)
+
+
+@main_bp.route("/jobs/<job_id>/status")
+@limiter.exempt
+def job_status(job_id):
+    job = jobs.get(job_id)
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+    if job["state"] == "blocked":
+        job["repair"] = {"label": "Repair configuration in Settings", "url": url_for("settings.settings")}
+    return jsonify(job)
+
+
+@main_bp.route("/jobs/<job_id>/acknowledge", methods=["POST"])
+def acknowledge_job(job_id):
+    if request.form.get("hosts_checked") != "yes":
+        return jsonify({"error": "Check the affected hosts before acknowledging an uncertain run"}), 400
+    if not jobs.acknowledge(job_id):
+        return jsonify({"error": "Job is not awaiting review"}), 409
+    return redirect(url_for("main.job_page", job_id=job_id))
 
 @main_bp.route("/show_playbook", methods=["POST"])
 def show_playbook():

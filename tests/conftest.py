@@ -34,6 +34,7 @@ def isolated_auth(tmp_path, monkeypatch):
     monkeypatch.setitem(ansiblePower.app.config, "TESTING", True)
     monkeypatch.setitem(ansiblePower.app.config, "WTF_CSRF_ENABLED", False)
     monkeypatch.setitem(ansiblePower.app.config, "SESSION_COOKIE_SECURE", False)
+    monkeypatch.setattr(utils, "HISTORY_FILE", str(tmp_path / "history.json"))
     ansiblePower.limiter.reset()
 
 

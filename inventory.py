@@ -93,20 +93,25 @@ def inspect_snapshot(path):
     preflight to static files also prevents a provider failure from producing
     an empty inventory and falling back to Ansible's implicit localhost.
     """
-    loader = DataLoader()
-    data = InventoryData()
-    plugin = "yaml" if path.endswith((".yaml", ".yml", ".json")) else "ini"
-    try:
-        inventory_loader.get(plugin).parse(data, loader, path, cache=False)
-        data.reconcile_inventory()
-    except (AnsibleError, OSError, UnicodeError) as exc:
-        raise InvalidInventory("Inventory could not be parsed. Repair the INI or YAML file in Settings.") from exc
-    finally:
-        loader.cleanup_all_tmp_files()
-    hosts = sorted(data.hosts)
-    if not hosts:
-        raise InvalidInventory("Inventory contains no hosts. Add hosts in Settings or explicitly select Local execution.")
-    return hosts
+    extension = os.path.splitext(path)[1]
+    plugins = ("yaml", "ini") if not extension else (("yaml",) if extension in {".yaml", ".yml", ".json"} else ("ini",))
+    last_error = None
+    for plugin in plugins:
+        loader = DataLoader()
+        data = InventoryData()
+        try:
+            inventory_loader.get(plugin).parse(data, loader, path, cache=False)
+            data.reconcile_inventory()
+        except (AnsibleError, OSError, UnicodeError, RecursionError) as exc:
+            last_error = exc
+            continue
+        finally:
+            loader.cleanup_all_tmp_files()
+        hosts = sorted(data.hosts)
+        if not hosts:
+            raise InvalidInventory("Inventory contains no hosts. Add hosts in Settings or explicitly select Local execution.")
+        return hosts
+    raise InvalidInventory("Inventory could not be parsed. Repair the INI or YAML file in Settings.") from last_error
 
 
 @contextmanager

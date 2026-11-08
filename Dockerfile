@@ -32,6 +32,5 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD curl -sf http://localhost:5000/health || exit 1
 
-# Use Gunicorn instead of Flask dev server
-# 2 workers, 120s timeout for long-running playbook executions
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "ansiblePower:app"]
+# Keep the web server and durable queue consumer supervised independently.
+CMD ["supervisord", "-c", "/app/supervisord.conf"]

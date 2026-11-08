@@ -2,7 +2,7 @@
 # Usage: make <target>
 # Requires: Python 3.9+, pip, Docker, docker compose
 
-.PHONY: help run test lint docker-build docker-up docker-down clean
+.PHONY: help run worker test lint docker-build docker-up docker-down clean
 
 # Default target — print help
 help:
@@ -10,6 +10,7 @@ help:
 	@echo "  ⚡ AnsiblePower — available make targets"
 	@echo ""
 	@echo "  make run           Start the app locally (Flask dev server)"
+	@echo "  make worker        Start the playbook queue consumer"
 	@echo "  make test          Run the full test suite with pytest"
 	@echo "  make lint          Run flake8 on application source files"
 	@echo "  make docker-build  Build the Docker image"
@@ -29,6 +30,9 @@ install-dev:
 ## Start the Flask development server (auto-reloads on code changes)
 run:
 	FLASK_DEBUG=true python ansiblePower.py
+
+worker:
+	python worker.py
 
 ## Run the full pytest test suite with coverage report
 test:

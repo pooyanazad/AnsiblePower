@@ -101,16 +101,26 @@ document.addEventListener("DOMContentLoaded", function(){
             btn.disabled = true;
             btn.innerHTML = '<span class="run-spinner"></span>Running&hellip;';
 
+            const pendingKey = 'pending-run:' + mode + ':' + playbook;
+            const submissionId = sessionStorage.getItem(pendingKey) ||
+                (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
+            sessionStorage.setItem(pendingKey, submissionId);
             fetch("/run_playbook", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/x-www-form-urlencoded",
-                    "X-CSRFToken": csrfToken
+                    "X-CSRFToken": csrfToken,
+                    "Idempotency-Key": submissionId
                 },
                 body: "playbook=" + encodeURIComponent(playbook) + "&execution_mode=" + encodeURIComponent(mode)
             })
             .then(res => res.json())
             .then(data => {
+                sessionStorage.removeItem(pendingKey);
+                if (data.url) {
+                    window.location.assign(data.url);
+                    return;
+                }
                 setTimeout(() => {
                     // task 53: render color-coded output instead of plain text
                     outputEl.innerHTML = colorizeAnsibleOutput(data.output || data.error || '');
@@ -132,6 +142,25 @@ document.addEventListener("DOMContentLoaded", function(){
             });
         });
     });
+
+    const jobDetail = document.getElementById('job-detail');
+    if (jobDetail) {
+        const poll = async () => {
+            try {
+                const response = await fetch(jobDetail.dataset.statusUrl);
+                if (!response.ok) throw new Error('Could not read run status. Refresh to try again.');
+                const job = await response.json();
+                document.getElementById('job-state').textContent = job.state;
+                document.getElementById('job-output').innerHTML = colorizeAnsibleOutput(job.output ||
+                    (job.state === 'running' ? 'Playbook is running…' : 'Waiting for the runner…'));
+                document.getElementById('job-review').hidden = job.state !== 'uncertain';
+                if (job.state === 'queued' || job.state === 'running') setTimeout(poll, 3000);
+            } catch (error) {
+                document.getElementById('job-output').textContent = error.message;
+            }
+        };
+        poll();
+    }
 
 
     // Show playbook content
