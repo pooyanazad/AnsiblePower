@@ -99,6 +99,12 @@ Sign in at [http://localhost:5000](http://localhost:5000) using the administrato
 
 > **Requirements:** Python 3.9+, Ansible installed and accessible via `ansible-playbook`
 
+Runs use the configured static INI or YAML inventory. Missing, unreadable,
+invalid, and empty inventories stop the launch and link to Settings for repair.
+Only hosts declared in that inventory can run; Ansible's implicit localhost is
+excluded. To intentionally run on the control node, select **Local — this control
+node** before clicking Run. A broken inventory never selects local execution.
+
 ---
 
 ## One-Command Dev Experience (Makefile)

@@ -5,6 +5,11 @@ import shutil
 import stat
 from contextlib import contextmanager
 
+from ansible.errors import AnsibleError
+from ansible.inventory.data import InventoryData
+from ansible.parsing.dataloader import DataLoader
+from ansible.plugins.loader import inventory_loader
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INVENTORY_DIR = os.path.join(BASE_DIR, "data", "inventories")
@@ -62,7 +67,10 @@ def open_file(path, writable=False):
         flags = (os.O_WRONLY if writable else os.O_RDONLY) | os.O_NOFOLLOW | os.O_NONBLOCK
         descriptor = os.open(os.path.basename(path), flags, dir_fd=parent)
         try:
-            check_regular_file(os.fstat(descriptor))
+            metadata = os.fstat(descriptor)
+            check_regular_file(metadata)
+            if not writable and not metadata.st_mode & 0o444:
+                raise PermissionError("Inventory has no read permission")
             stream = os.fdopen(descriptor, "w" if writable else "r", encoding="utf-8")
         except BaseException:
             os.close(descriptor)
@@ -72,6 +80,33 @@ def open_file(path, writable=False):
             if writable:
                 os.ftruncate(stream.fileno(), 0)
             yield stream
+
+
+class InvalidInventory(ValueError):
+    """An inventory that must be repaired before a playbook can start."""
+
+
+def inspect_snapshot(path):
+    """Parse a pinned static inventory using Ansible's own INI/YAML plugins.
+
+    Do not load script or dynamic inventory plugins in a web request. Keeping
+    preflight to static files also prevents a provider failure from producing
+    an empty inventory and falling back to Ansible's implicit localhost.
+    """
+    loader = DataLoader()
+    data = InventoryData()
+    plugin = "yaml" if path.endswith((".yaml", ".yml", ".json")) else "ini"
+    try:
+        inventory_loader.get(plugin).parse(data, loader, path, cache=False)
+        data.reconcile_inventory()
+    except (AnsibleError, OSError, UnicodeError) as exc:
+        raise InvalidInventory("Inventory could not be parsed. Repair the INI or YAML file in Settings.") from exc
+    finally:
+        loader.cleanup_all_tmp_files()
+    hosts = sorted(data.hosts)
+    if not hosts:
+        raise InvalidInventory("Inventory contains no hosts. Add hosts in Settings or explicitly select Local execution.")
+    return hosts
 
 
 @contextmanager

@@ -233,13 +233,23 @@ def run_playbook():
     if err:
         return err
 
+    execution_mode = request.form.get("execution_mode", "inventory")
+    if execution_mode not in {"inventory", "local"}:
+        return jsonify({"error": "Select Inventory or Local execution"}), 400
     cmd = [ANSIBLE_PLAYBOOK, playbook_path]
 
     try:
-        hosts_file = get_hosts_file()
-        with inventory.for_run(hosts_file) as (snapshot, descriptor):
-            output = subprocess.check_output(cmd + ["-i", snapshot], stderr=subprocess.STDOUT,
-                                             timeout=300, pass_fds=(descriptor,))
+        if execution_mode == "local":
+            output = subprocess.check_output(cmd + ["-i", "localhost,", "--connection=local", "--limit", "localhost"],
+                                             stderr=subprocess.STDOUT, timeout=300)
+        else:
+            hosts_file = get_hosts_file()
+            with inventory.for_run(hosts_file) as (snapshot, descriptor):
+                hosts = inventory.inspect_snapshot(snapshot)
+                # Exclude implicit localhost: only explicitly inventoried hosts
+                # can match a play, even when it asks for localhost directly.
+                output = subprocess.check_output(cmd + ["-i", snapshot, "--limit", ",".join(hosts)],
+                                                 stderr=subprocess.STDOUT, timeout=300, pass_fds=(descriptor,))
         output = output.decode("utf-8")
     except (ValueError, OSError) as e:
         return _inventory_error(e)
@@ -405,12 +415,15 @@ def save_hosts():
 
 
 def _inventory_error(error):
+    repair = {"label": "Repair inventory in Settings", "url": url_for("settings.settings")}
+    if isinstance(error, inventory.InvalidInventory):
+        return jsonify({"error": str(error), "repair": repair}), 400
     if isinstance(error, FileNotFoundError):
-        return jsonify({"error": "Inventory file not found; check the path in settings"}), 404
+        return jsonify({"error": "Inventory file not found; check the path in settings", "repair": repair}), 404
     if isinstance(error, PermissionError):
-        return jsonify({"error": "Inventory permission denied"}), 403
+        return jsonify({"error": "Inventory permission denied; restore read access in Settings", "repair": repair}), 403
     logger.warning("Rejected unsafe inventory: %s", error)
-    return jsonify({"error": "Invalid inventory path; select a regular file inside the dedicated inventory directory"}), 400
+    return jsonify({"error": "Invalid inventory path; select a regular file inside the dedicated inventory directory", "repair": repair}), 400
 
 @settings_bp.route("/system_status", methods=["GET"])
 def system_status():

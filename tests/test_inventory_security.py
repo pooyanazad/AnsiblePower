@@ -274,3 +274,54 @@ def test_real_ansible_parses_yaml_snapshot_and_adjacent_vars(tmp_path):
                                          pass_fds=(descriptor,), env=environment, timeout=30)
     data = json.loads(output)
     assert data["_meta"]["hostvars"]["snapshot.example.test"]["inventory_marker"] == "safe"
+
+
+@pytest.mark.parametrize("name,content", [
+    ("empty.ini", ""),
+    ("comments.ini", "# production hosts go here\n[production]\n"),
+    ("invalid.ini", "[production\nexample.test\n"),
+    ("invalid.yaml", "all: [unterminated"),
+    ("empty.yaml", "all:\n  hosts: {}\n"),
+    ("plugin.yaml", "plugin: amazon.aws.aws_ec2\n"),
+])
+def test_invalid_or_empty_inventory_blocks_launch_with_repair(flask_client, patched_paths, name, content):
+    selected = Path(inventory.INVENTORY_DIR) / name
+    selected.write_text(content)
+    configure(patched_paths, selected)
+    with patch("ansiblePower.subprocess.check_output") as run:
+        response = flask_client.post("/run_playbook", data={"playbook": "sample.yml"})
+    assert response.status_code == 400
+    assert response.json["repair"]["url"] == "/settings/"
+    run.assert_not_called()
+
+
+def test_unreadable_inventory_blocks_launch(flask_client, patched_paths):
+    selected = Path(utils.HOSTS_FILE)
+    selected.chmod(0)
+    try:
+        with patch("ansiblePower.subprocess.check_output") as run:
+            response = flask_client.post("/run_playbook", data={"playbook": "sample.yml"})
+        assert response.status_code == 403
+        assert response.json["repair"]["url"] == "/settings/"
+        run.assert_not_called()
+    finally:
+        selected.chmod(0o600)
+
+
+def test_local_execution_must_be_selected_explicitly(flask_client, patched_paths):
+    configure(patched_paths, Path(inventory.INVENTORY_DIR) / "missing-production.ini")
+    with patch("ansiblePower.subprocess.check_output", return_value=b"local run") as run:
+        assert flask_client.post("/run_playbook", data={"playbook": "sample.yml"}).status_code == 404
+        run.assert_not_called()
+        response = flask_client.post("/run_playbook", data={"playbook": "sample.yml", "execution_mode": "local"})
+    assert response.status_code == 200
+    command = run.call_args.args[0]
+    assert command[command.index("-i") + 1] == "localhost,"
+    assert "--connection=local" in command
+
+
+def test_invalid_execution_mode_is_rejected(flask_client):
+    with patch("ansiblePower.subprocess.check_output") as run:
+        response = flask_client.post("/run_playbook", data={"playbook": "sample.yml", "execution_mode": "fallback"})
+    assert response.status_code == 400
+    run.assert_not_called()

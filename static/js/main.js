@@ -81,9 +81,10 @@ document.addEventListener("DOMContentLoaded", function(){
             const index = btn.getAttribute("data-index");
             const wrapperEl = document.getElementById("wrapper-" + index);
             const outputEl  = document.getElementById("output-"  + index);
+            const mode = document.getElementById("execution-mode").value;
 
             // Task 22: confirm before running to prevent accidental execution
-            if (!confirm("Run '" + playbook + "'?")) {
+            if (!confirm("Run '" + playbook + "' on " + (mode === "local" ? "this control node" : "the configured inventory") + "?")) {
                 return;
             }
 
@@ -106,13 +107,20 @@ document.addEventListener("DOMContentLoaded", function(){
                     "Content-Type": "application/x-www-form-urlencoded",
                     "X-CSRFToken": csrfToken
                 },
-                body: "playbook=" + encodeURIComponent(playbook)
+                body: "playbook=" + encodeURIComponent(playbook) + "&execution_mode=" + encodeURIComponent(mode)
             })
             .then(res => res.json())
             .then(data => {
                 setTimeout(() => {
                     // task 53: render color-coded output instead of plain text
                     outputEl.innerHTML = colorizeAnsibleOutput(data.output || data.error || '');
+                    if (data.repair) {
+                        const repair = document.createElement('a');
+                        repair.href = data.repair.url;
+                        repair.textContent = data.repair.label;
+                        outputEl.appendChild(document.createTextNode('\n'));
+                        outputEl.appendChild(repair);
+                    }
                     btn.disabled = false;
                     btn.innerHTML = originalHTML;
                 }, 1000);

@@ -40,6 +40,14 @@
     </div>
 
     {% else %}
+    <div class="form-group">
+        <label for="execution-mode">Execution target</label>
+        <select id="execution-mode" class="form-control">
+            <option value="inventory" selected>Configured inventory</option>
+            <option value="local">Local — this control node</option>
+        </select>
+        <small class="form-text text-muted">Inventory problems must be repaired in Settings before running.</small>
+    </div>
     <div class="mb-3">
         <input type="text" id="playbook-search" class="form-control"
                placeholder="🔍 Filter playbooks..." autocomplete="off">
