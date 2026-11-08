@@ -122,8 +122,10 @@ stderr_logfile={tmp_path}/runner-errors.log
             assert duplicate["job_id"] == first["job_id"]
             starts = tmp_path / "starts.log"
             eventually(lambda: starts.exists() and len(starts.read_text().splitlines()) == 2)
-            assert status(third)["state"] == "queued"  # Both configured slots are busy.
-            assert status(first)["state"] == status(second)["state"] == "running"
+            states = {job["job_id"]: status(job) for job in (first, second, third)}
+            assert states[first["job_id"]]["state"] == "running", states
+            assert states[second["job_id"]]["state"] == "running", states
+            assert states[third["job_id"]]["state"] == "queued", states
             assert client.get(base + first["url"], timeout=2).status_code == 200
             assert first["url"] in client.get(base, timeout=2).text
 

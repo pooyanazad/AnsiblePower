@@ -4,6 +4,7 @@ import secrets
 import shutil
 import stat
 from contextlib import contextmanager
+from threading import Lock
 
 from ansible.errors import AnsibleError
 from ansible.inventory.data import InventoryData
@@ -14,6 +15,7 @@ from ansible.plugins.loader import inventory_loader
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INVENTORY_DIR = os.path.join(BASE_DIR, "data", "inventories")
 _INTERNAL_NAMES = {"config.json", "history.json", "history.db", "auth.db"}
+_INSPECTION_LOCK = Lock()
 
 
 def validate_path(path, must_exist=True):
@@ -93,6 +95,13 @@ def inspect_snapshot(path):
     preflight to static files also prevents a provider failure from producing
     an empty inventory and falling back to Ansible's implicit localhost.
     """
+    # Ansible's plugin loader mutates process-wide caches during first use.
+    # Serialize preflight checks; playbook processes still run concurrently.
+    with _INSPECTION_LOCK:
+        return _inspect_snapshot(path)
+
+
+def _inspect_snapshot(path):
     extension = os.path.splitext(path)[1]
     plugins = ("yaml", "ini") if not extension else (("yaml",) if extension in {".yaml", ".yml", ".json"} else ("ini",))
     last_error = None

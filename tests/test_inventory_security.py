@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -345,3 +346,30 @@ def test_restart_does_not_recreate_missing_selected_inventory(migration):
     with pytest.raises(FileNotFoundError):
         utils.init_inventory()
     assert not hosts.exists()
+
+
+def test_concurrent_inventory_checks_in_a_fresh_process(tmp_path):
+    ini = tmp_path / "hosts.ini"
+    yaml = tmp_path / "hosts.yaml"
+    ini.write_text("[production]\nnode.example.test\n")
+    yaml.write_text("all:\n  hosts:\n    node.example.test: {}\n")
+    # The regular suite warms Ansible's plugin caches before worker threads run.
+    # Start cold, just like a supervised runner after deployment or a crash.
+    script = """
+import sys
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+import inventory
+
+barrier = Barrier(8)
+def inspect(index):
+    barrier.wait()
+    return inventory.inspect_snapshot(sys.argv[1 + index % 2])
+
+with ThreadPoolExecutor(max_workers=8) as pool:
+    results = list(pool.map(inspect, range(8)))
+assert results == [['node.example.test']] * 8, results
+"""
+    result = subprocess.run([sys.executable, "-c", script, str(ini), str(yaml)],
+                            cwd=utils.BASE_DIR, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
