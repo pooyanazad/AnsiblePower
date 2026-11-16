@@ -35,7 +35,7 @@ def test_launch_is_persisted_and_does_not_execute_in_http(flask_client):
 def test_same_key_returns_completed_job_and_rejects_different_inputs(flask_client):
     headers = {"Idempotency-Key": "retry-this-request"}
     first = flask_client.post("/run_playbook", data={"playbook": "sample.yml"}, headers=headers)
-    with patch("worker.run_command", return_value=("succeeded", "PLAY RECAP")):
+    with patch("worker.run_command", return_value=("succeeded", "PLAY RECAP", 0)):
         assert worker.run_one(utils.get_history_db_file(), "ansible-playbook")
     again = flask_client.post("/run_playbook", data={"playbook": "sample.yml"}, headers=headers)
     assert again.json["job_id"] == first.json["job_id"]
@@ -51,7 +51,7 @@ def test_simultaneous_submissions_create_one_job(spec):
     assert len({job["id"] for job, _ in results}) == 1
     assert sum(created for _, created in results) == 1
     job_id = results[0][0]["id"]
-    with patch("worker.run_command", return_value=("succeeded", "done")):
+    with patch("worker.run_command", return_value=("succeeded", "done", 0)):
         worker.run_one(utils.get_history_db_file(), "ansible-playbook")
     # Every duplicate key remains attached to the same run after completion.
     for i in range(16):
@@ -114,7 +114,7 @@ def test_crash_recovery_never_replays_and_requires_review(flask_client, spec):
     url = f"/jobs/{job['id']}/acknowledge"
     assert flask_client.post(url).status_code == 400
     assert flask_client.post(url, data={"hosts_checked": "yes"}).status_code == 302
-    assert jobs.get(job["id"])["state"] == "reviewed"
+    assert jobs.get(job["id"])["state"] == "uncertain"
     assert jobs.enqueue(spec, "new-run")[0]["id"] != job["id"]
 
 
@@ -133,6 +133,12 @@ def test_real_process_result_and_history(spec, exit_code, expected):
         worker.run_one(utils.get_history_db_file(), "unused")
     result = jobs.get(job["id"])
     assert result["state"] == expected
+    assert result["exit_code"] == exit_code
+    assert result["started_at"] and result["finished_at"]
+    assert result["duration"] >= 0
+    history = utils.load_history()[0]
+    for field in ("state", "exit_code", "started_at", "finished_at", "duration"):
+        assert history[field] == result[field]
     assert "PLAY RECAP" in result["output"]
     assert utils.load_history()[0]["output"] == result["output"]
     jobs.finish(utils.get_history_db_file(), job["id"], expected, "duplicate callback")
@@ -143,7 +149,7 @@ def test_timeout_kills_descendants(tmp_path):
     marker = tmp_path / "child-survived"
     child = f"import time,pathlib; time.sleep(0.7); pathlib.Path({str(marker)!r}).touch()"
     script = f"import subprocess,sys,time; subprocess.Popen([sys.executable, '-c', {child!r}]); print('started', flush=True); time.sleep(10)"
-    state, output = worker.run_command([sys.executable, "-c", script], (), 0.2)
+    state, output, exit_code = worker.run_command([sys.executable, "-c", script], (), 0.2)
     assert state == "timed_out"
     assert "started" in output and "timed out" in output
     time.sleep(0.8)
@@ -186,3 +192,18 @@ def test_second_worker_cannot_recover_or_consume_an_active_queue(spec):
         with pytest.raises(RuntimeError, match="Another worker"):
             worker.serve(database, "ansible-playbook")
     assert jobs.get(job["id"])["state"] == "running"
+
+
+def test_missing_binary_is_launch_error(spec):
+    job, _ = jobs.enqueue(spec, "missing-binary")
+    worker.run_one(utils.get_history_db_file(), "/missing/ansible-playbook")
+    result = jobs.get(job["id"])
+    assert result["state"] == "launch_error"
+    assert result["exit_code"] is None
+    assert utils.load_history()[0]["state"] == "launch_error"
+
+
+def test_legacy_history_has_no_inferred_outcome(patched_paths):
+    utils.add_history_record({"action": "run", "playbook": "old.yml", "time": "old", "output": "ok=2 failed=0"})
+    result = utils.load_history()[0]
+    assert result["state"] is None and result["exit_code"] is None

@@ -193,18 +193,25 @@ def get_history_db_connection():
     return conn
 
 
+HISTORY_FIELDS = ("action", "playbook", "output", "time", "state", "exit_code",
+                  "started_at", "finished_at", "duration", "job_id")
+
+
+def ensure_history_schema(conn):
+    """Add nullable outcome fields; old output is never evidence of success."""
+    conn.execute("BEGIN IMMEDIATE")
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(playbook_runs)")}
+    for name, kind in (("state", "TEXT"), ("exit_code", "INTEGER"), ("started_at", "TEXT"),
+                       ("finished_at", "TEXT"), ("duration", "REAL"), ("job_id", "TEXT")):
+        if name not in columns:
+            conn.execute(f"ALTER TABLE playbook_runs ADD COLUMN {name} {kind}")
+    conn.commit()
+
+
 def _history_records_to_rows(history):
-    """Convert history dicts to SQLite insert rows (4-tuples)."""
-    return [
-        (
-            record.get("action", ""),
-            record.get("playbook", ""),
-            record.get("output", ""),
-            record.get("time", ""),
-        )
-        for record in history
-        if isinstance(record, dict)
-    ]
+    """Keep structured outcomes when exporting and importing history."""
+    return [tuple(record.get(key, "" if key in HISTORY_FIELDS[:4] else None)
+                  for key in HISTORY_FIELDS) for record in history if isinstance(record, dict)]
 
 
 def init_history_db():
@@ -221,6 +228,7 @@ def init_history_db():
                 )
             """)
 
+            ensure_history_schema(conn)
             row_count = conn.execute(
                 "SELECT COUNT(*) FROM playbook_runs"
             ).fetchone()[0]
@@ -233,8 +241,8 @@ def init_history_db():
                     if isinstance(history, list):
                         conn.executemany("""
                             INSERT INTO playbook_runs
-                            (action, playbook, output, time)
-                            VALUES (?, ?, ?, ?)
+                            (action, playbook, output, time, state, exit_code, started_at, finished_at, duration, job_id)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, _history_records_to_rows(history))
                         logger.info("Migrated existing history.json records to SQLite")
                 except Exception as e:
@@ -254,7 +262,7 @@ def load_history():
 
         with get_history_db_connection() as conn:
             rows = conn.execute("""
-                SELECT id, action, playbook, output, time
+                SELECT *
                 FROM playbook_runs
                 ORDER BY id ASC
             """).fetchall()
@@ -273,8 +281,8 @@ def save_history(history):
         with get_history_db_connection() as conn:
             conn.execute("DELETE FROM playbook_runs")
             conn.executemany("""
-                INSERT INTO playbook_runs (action, playbook, output, time)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO playbook_runs (action, playbook, output, time, state, exit_code, started_at, finished_at, duration, job_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, _history_records_to_rows(history))
     except Exception as e:
         logger.error("Error saving history to SQLite: %s", e)
@@ -287,14 +295,9 @@ def add_history_record(record):
 
         with get_history_db_connection() as conn:
             conn.execute("""
-                INSERT INTO playbook_runs (action, playbook, output, time)
-                VALUES (?, ?, ?, ?)
-            """, (
-                record.get("action", ""),
-                record.get("playbook", ""),
-                record.get("output", ""),
-                record.get("time", ""),
-            ))
+                INSERT INTO playbook_runs (action, playbook, output, time, state, exit_code, started_at, finished_at, duration, job_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, _history_records_to_rows([record])[0])
     except Exception as e:
         logger.error("Error adding history record to SQLite: %s", e)
 

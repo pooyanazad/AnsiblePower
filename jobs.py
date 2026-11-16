@@ -18,7 +18,7 @@ class QueueFull(ValueError):
 
 
 def now():
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
 
 def digest(content):
@@ -59,6 +59,19 @@ def connect(database=None):
                 time TEXT NOT NULL
             );
         """)
+        conn.execute("BEGIN IMMEDIATE")
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
+        for name, kind in (("exit_code", "INTEGER"), ("duration", "REAL"),
+                           ("cancel_requested", "INTEGER NOT NULL DEFAULT 0"),
+                           ("process_identity", "TEXT"), ("acknowledged_at", "TEXT")):
+            if name not in columns:
+                conn.execute(f"ALTER TABLE jobs ADD COLUMN {name} {kind}")
+        conn.execute("DROP INDEX IF EXISTS jobs_active_target")
+        conn.execute("""CREATE UNIQUE INDEX IF NOT EXISTS jobs_unreviewed_target ON jobs(target_key)
+            WHERE state IN ('queued', 'running') OR
+            (state IN ('uncertain', 'interrupted') AND acknowledged_at IS NULL)""")
+        conn.commit()
+        utils.ensure_history_schema(conn)
         yield conn
     finally:
         conn.close()
@@ -78,7 +91,8 @@ def enqueue(spec, submission_key, capacity=100):
             if previous["request_fingerprint"] != fingerprint:
                 raise SubmissionConflict("This submission key belongs to a different run. Submit again with a new key.")
             return public(previous), False
-        active = conn.execute("SELECT * FROM jobs WHERE target_key = ? AND state IN ('queued', 'running', 'uncertain')",
+        active = conn.execute("""SELECT * FROM jobs WHERE target_key = ? AND (state IN ('queued', 'running')
+            OR (state IN ('uncertain', 'interrupted') AND acknowledged_at IS NULL))""",
                               (target_key,)).fetchone()
         if active:
             conn.execute("INSERT INTO job_submissions VALUES (?, ?, ?)", (submission_key, fingerprint, active["id"]))
@@ -98,7 +112,10 @@ def enqueue(spec, submission_key, capacity=100):
 
 
 def public(row):
-    return {key: row[key] for key in ("id", "playbook", "state", "output", "created_at", "started_at", "finished_at")}
+    result = {key: row[key] for key in ("id", "playbook", "state", "output", "created_at", "started_at",
+                                        "finished_at", "exit_code", "duration", "cancel_requested")}
+    result["needs_review"] = row["state"] in {"uncertain", "interrupted"} and row["acknowledged_at"] is None
+    return result
 
 
 def get(job_id):
@@ -124,16 +141,26 @@ def claim(database):
         return {"id": row["id"], "spec": json.loads(row["spec"])}
 
 
-def finish(database, job_id, state, output):
+def record_result(conn, row, state, output, exit_code=None):
+    """Update one job and its history in the caller's transaction."""
+    ended = now()
+    duration = ((datetime.fromisoformat(ended) - datetime.fromisoformat(row["started_at"])).total_seconds()
+                if row["started_at"] else None)
+    conn.execute("""UPDATE jobs SET state = ?, output = ?, exit_code = ?, finished_at = ?, duration = ?
+        WHERE id = ?""", (state, output, exit_code, ended, duration, row["id"]))
+    conn.execute("""INSERT INTO playbook_runs
+        (action, playbook, output, time, state, exit_code, started_at, finished_at, duration, job_id)
+        VALUES ('run', ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                 (row["playbook"], output, ended, state, exit_code, row["started_at"], ended, duration, row["id"]))
+
+
+def finish(database, job_id, state, output, exit_code=None):
     """Persist the result and history together, once."""
     with connect(database) as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM jobs WHERE id = ? AND state = 'running'", (job_id,)).fetchone()
         if row:
-            conn.execute("UPDATE jobs SET state = ?, output = ?, finished_at = ? WHERE id = ?",
-                         (state, output, now(), job_id))
-            conn.execute("INSERT INTO playbook_runs (action, playbook, output, time) VALUES ('run', ?, ?, ?)",
-                         (row["playbook"], output, now()))
+            record_result(conn, row, state, output, exit_code)
         conn.commit()
 
 
@@ -142,15 +169,14 @@ def recover(database):
     with connect(database) as conn:
         conn.execute("BEGIN IMMEDIATE")
         message = "Worker stopped before recording the result. Check the affected hosts before acknowledging this run. It will not be replayed."
-        for row in conn.execute("SELECT playbook FROM jobs WHERE state = 'running'").fetchall():
-            conn.execute("INSERT INTO playbook_runs (action, playbook, output, time) VALUES ('run', ?, ?, ?)",
-                         (row["playbook"], message, now()))
-        conn.execute("UPDATE jobs SET state = 'uncertain', finished_at = ?, output = ? WHERE state = 'running'", (now(), message))
+        for row in conn.execute("SELECT * FROM jobs WHERE state = 'running'").fetchall():
+            record_result(conn, row, "uncertain", message)
         conn.commit()
 
 
 def acknowledge(job_id):
     with connect() as conn:
-        result = conn.execute("UPDATE jobs SET state = 'reviewed' WHERE id = ? AND state = 'uncertain'", (job_id,))
+        result = conn.execute("""UPDATE jobs SET acknowledged_at = ? WHERE id = ?
+            AND state IN ('uncertain', 'interrupted') AND acknowledged_at IS NULL""", (now(), job_id))
         conn.commit()
         return result.rowcount == 1

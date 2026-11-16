@@ -13,6 +13,10 @@ import jobs
 import utils
 
 
+class RunLaunchError(Exception):
+    """The executable could not be started."""
+
+
 class RunBlocked(Exception):
     """Preflight failed before a process could be started."""
 
@@ -22,15 +26,19 @@ def run_command(command, descriptors, timeout):
     environment = dict(os.environ, ANSIBLE_INVENTORY_ENABLED="host_list,yaml,ini",
                        ANSIBLE_INVENTORY_UNPARSED_FAILED="true",
                        ANSIBLE_INVENTORY_ANY_UNPARSED_IS_FAILED="true")
-    with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                          pass_fds=descriptors, start_new_session=True, env=environment) as process:
+    try:
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   pass_fds=descriptors, start_new_session=True, env=environment)
+    except OSError as exc:
+        raise RunLaunchError(f"Could not launch playbook: {exc}") from exc
+    with process:
         try:
             output, _ = process.communicate(timeout=timeout)
-            return ("succeeded" if process.returncode == 0 else "failed"), output.decode("utf-8", errors="replace")
+            return ("succeeded" if process.returncode == 0 else "failed"), output.decode("utf-8", errors="replace"), process.returncode
         except subprocess.TimeoutExpired:
             os.killpg(process.pid, signal.SIGKILL)
             output, _ = process.communicate()
-            return "timed_out", output.decode("utf-8", errors="replace") + f"\nPlaybook timed out after {timeout:g} seconds. The process group was killed."
+            return "timed_out", output.decode("utf-8", errors="replace") + f"\nPlaybook timed out after {timeout:g} seconds. The process group was killed.", process.returncode
 
 
 def execute(job, binary, timeout):
@@ -65,15 +73,18 @@ def run_one(database, binary, timeout=300):
     job = jobs.claim(database)
     if not job:
         return False
+    exit_code = None
     try:
-        state, output = execute(job, binary, timeout)
+        state, output, exit_code = execute(job, binary, timeout)
+    except RunLaunchError as exc:
+        state, output = "launch_error", str(exc)
     except RunBlocked as exc:
         state, output = "blocked", str(exc)
     except Exception:
         # A process may already have started; never claim it is safe to retry.
         utils.logger.exception("Run %s has an uncertain outcome", job["id"])
         state, output = "uncertain", "Runner could not confirm the result. Check the affected hosts before acknowledging this run."
-    jobs.finish(database, job["id"], state, output.strip() or "No output produced.")
+    jobs.finish(database, job["id"], state, output.strip() or "No output produced.", exit_code)
     return True
 
 

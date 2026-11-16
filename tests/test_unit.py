@@ -120,7 +120,7 @@ class TestConfigAndHistory(unittest.TestCase):
         save_history(history_data)
 
         self.assertEqual(
-            [{k: v for k, v in r.items() if k != 'id'} for r in load_history()],
+            [{k: v for k, v in r.items() if k in {'action', 'playbook', 'output', 'time'}} for r in load_history()],
             history_data,
         )
 
@@ -147,7 +147,7 @@ class TestConfigAndHistory(unittest.TestCase):
 
         self.assertTrue(os.path.exists(self.test_history_db_file))
         self.assertEqual(
-            [{k: v for k, v in r.items() if k != 'id'} for r in load_history()],
+            [{k: v for k, v in r.items() if k in {'action', 'playbook', 'output', 'time'}} for r in load_history()],
             history_data,
         )
 
@@ -326,7 +326,7 @@ class TestRunPlaybookValid(unittest.TestCase):
         """Consume the accepted job and read its persisted result."""
         fake_output = b"PLAY RECAP *** ok=1 changed=0 unreachable=0 failed=0"
 
-        with patch("worker.run_command", return_value=("succeeded", fake_output.decode())) as mock_sub:
+        with patch("worker.run_command", return_value=("succeeded", fake_output.decode(), 0)) as mock_sub:
             resp = self.client.post(
                 "/run_playbook",
                 data={"playbook": self._playbook_name},
@@ -402,7 +402,7 @@ class TestRunPlaybookFailure(unittest.TestCase):
         """A failed run remains visible in status and history."""
         error_output = b"fatal: [localhost]: UNREACHABLE!"
 
-        with patch("worker.run_command", return_value=("failed", error_output.decode())):
+        with patch("worker.run_command", return_value=("failed", error_output.decode(), 4)):
             resp = self.client.post(
                 "/run_playbook",
                 data={"playbook": self._playbook_name},
@@ -471,7 +471,7 @@ class TestRunPlaybookTimeout(unittest.TestCase):
     def test_run_playbook_timeout(self):
         """Timeout output is available from the persisted status URL."""
 
-        with patch("worker.run_command", return_value=("timed_out", "Playbook timed out after 300 seconds.")):
+        with patch("worker.run_command", return_value=("timed_out", "Playbook timed out after 300 seconds.", -9)):
             resp = self.client.post(
                 "/run_playbook",
                 data={"playbook": self._playbook_name},
@@ -1039,7 +1039,7 @@ class TestColorCodedOutputEndpoint(unittest.TestCase):
             b"PLAY RECAP **\n"
             b"localhost : ok=1 changed=0 unreachable=0 failed=0\n"
         )
-        with patch("worker.run_command", return_value=("succeeded", fake_output.decode())):
+        with patch("worker.run_command", return_value=("succeeded", fake_output.decode(), 0)):
             resp = self.client.post(
                 "/run_playbook",
                 data={"playbook": self._playbook_name},

@@ -314,7 +314,7 @@ def test_unreadable_inventory_blocks_launch(flask_client, patched_paths):
 
 def test_local_execution_must_be_selected_explicitly(flask_client, patched_paths):
     configure(patched_paths, Path(inventory.INVENTORY_DIR) / "missing-production.ini")
-    with patch("worker.run_command", return_value=("succeeded", "local run")) as run:
+    with patch("worker.run_command", return_value=("succeeded", "local run", 0)) as run:
         assert flask_client.post("/run_playbook", data={"playbook": "sample.yml"}).status_code == 404
         run.assert_not_called()
         response = flask_client.post("/run_playbook", data={"playbook": "sample.yml", "execution_mode": "local"})
