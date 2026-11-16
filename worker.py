@@ -5,9 +5,14 @@ import os
 import signal
 import subprocess
 import threading
+import sys
+import tempfile
+import time
+import json
 from concurrent.futures import FIRST_EXCEPTION, ThreadPoolExecutor, wait
 from contextlib import ExitStack
 
+import process_control
 import inventory
 import jobs
 import utils
@@ -21,24 +26,90 @@ class RunBlocked(Exception):
     """Preflight failed before a process could be started."""
 
 
-def run_command(command, descriptors, timeout):
-    """Kill the whole process group on timeout, including SSH children."""
+# The wrapper waits for registration before exec. If the worker dies first,
+# stdin closes and no playbook starts. The error pipe closes on successful exec.
+LAUNCH_GATE = """
+import os, sys
+error_fd = int(sys.argv[1])
+os.set_inheritable(error_fd, False)
+if os.read(0, 1) != b'1':
+    sys.exit(125)
+os.dup2(os.open(os.devnull, os.O_RDONLY), 0)
+try:
+    os.execvpe(sys.argv[2], sys.argv[2:], os.environ)
+except OSError as exc:
+    os.write(error_fd, str(exc).encode())
+    sys.exit(127)
+"""
+
+
+def run_command(command, descriptors, timeout, *, logfile=None, on_start=None,
+                stop_reason=None, grace=2):
+    """Keep partial output on disk and supervise the entire local process group."""
     environment = dict(os.environ, ANSIBLE_INVENTORY_ENABLED="host_list,yaml,ini",
                        ANSIBLE_INVENTORY_UNPARSED_FAILED="true",
                        ANSIBLE_INVENTORY_ANY_UNPARSED_IS_FAILED="true")
-    try:
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                   pass_fds=descriptors, start_new_session=True, env=environment)
-    except OSError as exc:
-        raise RunLaunchError(f"Could not launch playbook: {exc}") from exc
-    with process:
+    with ExitStack() as stack:
+        if logfile:
+            fd = os.open(logfile, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+            output_file = stack.enter_context(os.fdopen(fd, "wb"))
+            reader = stack.enter_context(open(logfile, "rb"))
+        else:
+            output_file = stack.enter_context(tempfile.TemporaryFile())
+            reader = output_file
+        # A separate error pipe distinguishes exec failure from an Ansible exit.
+        error_read, error_write = os.pipe()
+        stack.callback(os.close, error_read)
+        os.set_blocking(error_read, False)
+        gated_command = [sys.executable, "-c", LAUNCH_GATE, str(error_write), *command]
         try:
-            output, _ = process.communicate(timeout=timeout)
-            return ("succeeded" if process.returncode == 0 else "failed"), output.decode("utf-8", errors="replace"), process.returncode
-        except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGKILL)
-            output, _ = process.communicate()
-            return "timed_out", output.decode("utf-8", errors="replace") + f"\nPlaybook timed out after {timeout:g} seconds. The process group was killed.", process.returncode
+            process = subprocess.Popen(gated_command, stdin=subprocess.PIPE, stdout=output_file,
+                                       stderr=subprocess.STDOUT, pass_fds=(*descriptors, error_write),
+                                       start_new_session=True, env=environment)
+        except OSError as exc:
+            raise RunLaunchError(f"Could not launch playbook: {exc}") from exc
+        finally:
+            os.close(error_write)
+        owner = None
+        reason = None
+        try:
+            owner = process_control.identity(process.pid)
+            if on_start:
+                on_start(owner)
+            reason = stop_reason() if stop_reason else None
+            if not reason:
+                process.stdin.write(b"1")
+                process.stdin.flush()
+            process.stdin.close()
+            deadline = time.monotonic() + timeout
+            while process.poll() is None and not reason:
+                reason = stop_reason() if stop_reason else None
+                if reason:
+                    break
+                if time.monotonic() >= deadline:
+                    reason = "timed_out"
+                    break
+                time.sleep(0.1)
+        finally:
+            process.stdin.close()
+            if owner:
+                process_control.terminate(owner, grace)
+            else:
+                # No command was released through the gate.
+                process.kill()
+            process.wait(timeout=max(grace, 1) + 2)
+        reader.seek(0)
+        output = reader.read().decode("utf-8", errors="replace")
+        error = os.read(error_read, 65536).decode("utf-8", errors="replace")
+        if error:
+            raise RunLaunchError(f"Could not launch playbook: {error}")
+        if reason:
+            messages = {"timed_out": f"Playbook timed out after {timeout:g} seconds.",
+                        "canceled": "Run canceled by an administrator.",
+                        "interrupted": "Run interrupted because the runner stopped."}
+            output += "\n" + messages[reason] + " Local process group stopped; remote work may still be running."
+            return reason, output, process.returncode
+        return ("succeeded" if process.returncode == 0 else "failed"), output, process.returncode
 
 
 def execute(job, binary, timeout):
@@ -66,6 +137,12 @@ def execute(job, binary, timeout):
                 descriptors = (descriptor,)
         except (ValueError, OSError) as exc:
             raise RunBlocked(f"Run blocked: {exc}. Repair the configuration in Settings and submit again.") from exc
+        database = job.get("database")
+        if database:
+            return run_command(command, descriptors, timeout,
+                               logfile=jobs.log_path(database, job["id"]),
+                               on_start=lambda owner: jobs.register_process(database, job["id"], owner),
+                               stop_reason=job.get("stop_reason"))
         return run_command(command, descriptors, timeout)
 
 
@@ -73,6 +150,7 @@ def run_one(database, binary, timeout=300):
     job = jobs.claim(database)
     if not job:
         return False
+    job["database"] = database
     exit_code = None
     try:
         state, output, exit_code = execute(job, binary, timeout)
@@ -83,7 +161,7 @@ def run_one(database, binary, timeout=300):
     except Exception:
         # A process may already have started; never claim it is safe to retry.
         utils.logger.exception("Run %s has an uncertain outcome", job["id"])
-        state, output = "uncertain", "Runner could not confirm the result. Check the affected hosts before acknowledging this run."
+        state, output = "uncertain", jobs.read_log(database, job["id"]) + "\nRunner could not confirm the result. Check the affected hosts before acknowledging this run."
     jobs.finish(database, job["id"], state, output.strip() or "No output produced.", exit_code)
     return True
 

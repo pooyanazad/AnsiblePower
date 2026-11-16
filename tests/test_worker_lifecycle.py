@@ -27,7 +27,7 @@ def eventually(check, timeout=15):
 
 def test_long_runs_survive_web_recycling_and_crashes_are_not_replayed(tmp_path):
     source = Path(__file__).resolve().parents[1]
-    for name in ("ansiblePower.py", "auth.py", "utils.py", "inventory.py", "jobs.py", "worker.py"):
+    for name in ("ansiblePower.py", "auth.py", "utils.py", "inventory.py", "jobs.py", "worker.py", "process_control.py"):
         shutil.copy(source / name, tmp_path / name)
     for name in ("templates", "static"):
         shutil.copytree(source / name, tmp_path / name)
@@ -161,10 +161,10 @@ stderr_logfile={tmp_path}/runner-errors.log
             runner = next(process for process in processes if "worker.py" in process.cmdline())
             descendants = runner.children(recursive=True)
             runner.kill()
-            eventually(lambda: status(crashing)["state"] == "uncertain")
+            eventually(lambda: status(crashing)["state"] == "interrupted")
             time.sleep(1)
             assert starts.read_text().splitlines().count("crash.yml") == 1
-            assert status(crashing)["state"] == "uncertain"
+            assert status(crashing)["state"] == "interrupted"
             assert client.get(base + "/health", timeout=2).status_code == 200
         finally:
             client.close()

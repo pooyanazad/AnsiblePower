@@ -106,7 +106,7 @@ def test_crash_recovery_never_replays_and_requires_review(flask_client, spec):
     database = utils.get_history_db_file()
     assert jobs.claim(database)["id"] == job["id"]
     jobs.recover(database)
-    assert jobs.get(job["id"])["state"] == "uncertain"
+    assert jobs.get(job["id"])["state"] == "interrupted"
     with patch("worker.run_command") as execute:
         assert not worker.run_one(database, "ansible-playbook")
     execute.assert_not_called()
@@ -114,7 +114,7 @@ def test_crash_recovery_never_replays_and_requires_review(flask_client, spec):
     url = f"/jobs/{job['id']}/acknowledge"
     assert flask_client.post(url).status_code == 400
     assert flask_client.post(url, data={"hosts_checked": "yes"}).status_code == 302
-    assert jobs.get(job["id"])["state"] == "uncertain"
+    assert jobs.get(job["id"])["state"] == "interrupted"
     assert jobs.enqueue(spec, "new-run")[0]["id"] != job["id"]
 
 

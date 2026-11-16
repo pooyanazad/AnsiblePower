@@ -1,6 +1,8 @@
 """Durable playbook queue shared by the web app and the runner."""
 import hashlib
 import json
+import os
+from pathlib import Path
 import sqlite3
 import uuid
 from contextlib import contextmanager
@@ -111,9 +113,11 @@ def enqueue(spec, submission_key, capacity=100):
         return public(conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()), True
 
 
-def public(row):
+def public(row, database=None):
     result = {key: row[key] for key in ("id", "playbook", "state", "output", "created_at", "started_at",
                                         "finished_at", "exit_code", "duration", "cancel_requested")}
+    if row["state"] == "running":
+        result["output"] = read_log(database, row["id"], result["output"])
     result["needs_review"] = row["state"] in {"uncertain", "interrupted"} and row["acknowledged_at"] is None
     return result
 
@@ -164,14 +168,38 @@ def finish(database, job_id, state, output, exit_code=None):
         conn.commit()
 
 
-def recover(database):
-    """Only the worker holding the exclusive runner lock may call this."""
+def log_path(database, job_id):
+    directory = os.path.abspath(database or utils.get_history_db_file()) + ".logs"
+    os.makedirs(directory, mode=0o700, exist_ok=True)
+    return os.path.join(directory, job_id + ".log")
+
+
+def read_log(database, job_id, fallback=""):
+    try:
+        return Path(log_path(database, job_id)).read_bytes().decode("utf-8", errors="replace")
+    except FileNotFoundError:
+        return fallback
+
+
+def register_process(database, job_id, owner):
     with connect(database) as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        message = "Worker stopped before recording the result. Check the affected hosts before acknowledging this run. It will not be replayed."
-        for row in conn.execute("SELECT * FROM jobs WHERE state = 'running'").fetchall():
-            record_result(conn, row, "uncertain", message)
+        conn.execute("UPDATE jobs SET process_identity = ? WHERE id = ? AND state = 'running'",
+                     (json.dumps(owner), job_id))
         conn.commit()
+
+
+def recover(database):
+    """Reconcile orphan groups under the exclusive runner lock; never replay."""
+    import process_control
+
+    with connect(database) as conn:
+        rows = conn.execute("SELECT * FROM jobs WHERE state = 'running'").fetchall()
+    for row in rows:
+        if row["process_identity"]:
+            process_control.terminate(json.loads(row["process_identity"]))
+        output = read_log(database, row["id"], row["output"])
+        message = "Run interrupted before its result was recorded. Local process group stopped; remote work may still be running. Check the affected hosts before acknowledging this run. It will not be replayed."
+        finish(database, row["id"], "interrupted", output + "\n" + message)
 
 
 def acknowledge(job_id):
