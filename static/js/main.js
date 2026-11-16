@@ -15,6 +15,9 @@ function colorizeAnsibleOutput(text) {
         var escaped = escapeHtml(line);
         var trimmed = line.trimStart();
 
+        if (/^(fatal|failed|unreachable)[\s:\[]/i.test(trimmed) || /\b(?:failed|unreachable)=\d*[1-9]\d*\b/.test(trimmed)) {
+            return '<span class="ap-out-fatal">' + escaped + '</span>';
+        }
         if (/^PLAY RECAP\b/i.test(trimmed)) {
             return '<span class="ap-out-recap">' + escaped + '</span>';
         }
@@ -27,15 +30,26 @@ function colorizeAnsibleOutput(text) {
         if (/^(ok|ok=)[\s:]/i.test(trimmed) || /\bok=\d+\b/.test(trimmed)) {
             return '<span class="ap-out-ok">' + escaped + '</span>';
         }
-        if (/^changed[\s:]/i.test(trimmed) || /\bchanged=\d+\b/.test(trimmed)) {
+        if (/^changed[\s:]/i.test(trimmed) || /\bchanged=\d*[1-9]\d*\b/.test(trimmed)) {
             return '<span class="ap-out-changed">' + escaped + '</span>';
-        }
-        if (/^(fatal|failed)[\s:\[]/i.test(trimmed) || /\bfailed=\d*[1-9]\d*\b/.test(trimmed)) {
-            return '<span class="ap-out-fatal">' + escaped + '</span>';
         }
         return escaped;
     });
     return result.join('\n');
+}
+
+// Only persisted lifecycle state determines outcome presentation.
+function jobPresentation(job) {
+    const outcomes = {
+        queued: ['Queued', 'info'], running: ['Running', 'info'],
+        succeeded: ['Succeeded', 'success'], failed: ['Failed', 'danger'],
+        launch_error: ['Launch error', 'danger'], blocked: ['Blocked', 'danger'],
+        timed_out: ['Timed out', 'danger'], canceled: ['Canceled', 'warning'],
+        interrupted: ['Interrupted', 'warning'], uncertain: ['Uncertain', 'warning']
+    };
+    const [label, tone] = outcomes[job.state] || ['Unknown', 'secondary'];
+    return {label, tone, active: job.state === 'queued' || job.state === 'running',
+            toast: job.state === 'succeeded' ? 'success' : (tone === 'danger' ? 'error' : 'info')};
 }
 
 window.showToast = function(message, type = 'info') {
@@ -145,20 +159,56 @@ document.addEventListener("DOMContentLoaded", function(){
 
     const jobDetail = document.getElementById('job-detail');
     if (jobDetail) {
+        let announced = false;
+        const cancelForm = document.getElementById('job-cancel');
+        const cancelButton = cancelForm.querySelector('button');
         const poll = async () => {
             try {
-                const response = await fetch(jobDetail.dataset.statusUrl);
+                const response = await fetch(jobDetail.dataset.statusUrl, {headers: {'Accept': 'application/json'}});
                 if (!response.ok) throw new Error('Could not read run status. Refresh to try again.');
                 const job = await response.json();
-                document.getElementById('job-state').textContent = job.state;
-                document.getElementById('job-output').innerHTML = colorizeAnsibleOutput(job.output ||
-                    (job.state === 'running' ? 'Playbook is running…' : 'Waiting for the runner…'));
-                document.getElementById('job-review').hidden = job.state !== 'uncertain';
-                if (job.state === 'queued' || job.state === 'running') setTimeout(poll, 3000);
+                const view = jobPresentation(job);
+                const badge = document.getElementById('job-state');
+                badge.textContent = view.label;
+                badge.className = 'badge badge-' + view.tone;
+                document.getElementById('job-started').textContent = job.started_at || 'Not started';
+                document.getElementById('job-finished').textContent = job.finished_at || '—';
+                document.getElementById('job-duration').textContent = job.duration == null ? '—' : job.duration + ' s';
+                document.getElementById('job-exit').textContent = job.exit_code == null ? 'Unknown' : job.exit_code;
+                const emptyOutput = view.active ? (job.state === 'running' ? 'Playbook is running…' : 'Waiting for the runner…') : 'No output recorded.';
+                document.getElementById('job-output').innerHTML = colorizeAnsibleOutput(job.output || emptyOutput);
+                document.getElementById('job-review').hidden = !job.needs_review;
+                cancelForm.hidden = !view.active;
+                cancelButton.disabled = !!job.cancel_requested;
+                cancelButton.textContent = job.cancel_requested ? 'Cancellation requested…' : 'Cancel run';
+                if (view.active) {
+                    setTimeout(poll, 1000);
+                } else if (!announced) {
+                    showToast(view.label + ': ' + job.playbook, view.toast);
+                    announced = true;
+                }
             } catch (error) {
-                document.getElementById('job-output').textContent = error.message;
+                showToast(error.message, 'error');
+                setTimeout(poll, 3000);
             }
         };
+        cancelForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            cancelButton.disabled = true;
+            try {
+                const response = await fetch(cancelForm.action, {
+                    method: 'POST', headers: {'X-CSRFToken': csrfToken, 'Accept': 'application/json'},
+                    body: new FormData(cancelForm)
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Could not cancel run.');
+                cancelButton.textContent = 'Cancellation requested…';
+                showToast(data.state === 'canceled' ? 'Run canceled.' : 'Cancellation requested.', 'info');
+            } catch (error) {
+                showToast(error.message, 'error');
+                cancelButton.disabled = false;
+            }
+        });
         poll();
     }
 
@@ -550,13 +600,13 @@ document.addEventListener("DOMContentLoaded", function(){
             })
             .then(function(res) { return res.json(); })
             .then(function(data) {
-                if (data.error) {
-                    showToast(data.error, 'error');
+                if (data.url) {
+                    showToast('Opening run status…', 'info');
+                    window.location.assign(data.url);
+                } else {
+                    showToast(data.error || 'Could not submit run.', 'error');
                     btn.disabled = false;
                     btn.textContent = originalText;
-                } else {
-                    showToast("Finished '" + playbook + "'. Refreshing history…", 'success');
-                    setTimeout(function() { window.location.reload(); }, 1200);
                 }
             })
             .catch(function() {

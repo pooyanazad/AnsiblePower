@@ -1,16 +1,28 @@
 {% extends 'base.html' %}
+{% from '_outcome.html' import badge %}
 {% block title %}Run {{ job.id }} — AnsiblePower{% endblock %}
 {% block content %}
 <div class="mt-4" id="job-detail" data-status-url="{{ url_for('main.job_status', job_id=job.id) }}">
     <h1>{{ job.playbook }}</h1>
-    <p>Run <code>{{ job.id }}</code> · <strong id="job-state">{{ job.state }}</strong></p>
+    <p>Run <code>{{ job.id }}</code> · {{ badge(job.state, "job-state") }}</p>
     <p>You can leave this page and return to this URL to check the result.</p>
+    <dl>
+        <dt>Started</dt><dd id="job-started">{{ job.started_at or 'Not started' }}</dd>
+        <dt>Ended</dt><dd id="job-finished">{{ job.finished_at or '—' }}</dd>
+        <dt>Duration</dt><dd id="job-duration">{{ job.duration if job.duration is not none else '—' }}{% if job.duration is not none %} s{% endif %}</dd>
+        <dt>Exit code</dt><dd id="job-exit">{{ job.exit_code if job.exit_code is not none else 'Unknown' }}</dd>
+    </dl>
+    <form id="job-cancel" method="post" action="{{ url_for('main.cancel_job', job_id=job.id) }}" {% if job.state not in ['queued', 'running'] %}hidden{% endif %}>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-warning" type="submit" {% if job.cancel_requested %}disabled{% endif %}>{% if job.cancel_requested %}Cancellation requested…{% else %}Cancel run{% endif %}</button>
+    </form>
+    <p>Stopping a local runner cannot guarantee cancellation of work already started remotely. Check the affected hosts.</p>
     <pre id="job-output" class="playbook-output">{{ job.output }}</pre>
     <p><a href="{{ url_for('settings.settings') }}">Repair configuration in Settings</a> ·
        <a href="{{ url_for('main.homepage') }}">Back to playbooks</a></p>
-    <form id="job-review" method="post" action="{{ url_for('main.acknowledge_job', job_id=job.id) }}" {% if job.state != 'uncertain' %}hidden{% endif %}>
+    <form id="job-review" method="post" action="{{ url_for('main.acknowledge_job', job_id=job.id) }}" {% if not job.needs_review %}hidden{% endif %}>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <p>The result is uncertain. This run will not be replayed. Check the affected hosts before starting another run.</p>
+        <p>The run was interrupted or its result is uncertain. This run will not be replayed. Check the affected hosts before starting another run.</p>
         <label><input type="checkbox" name="hosts_checked" value="yes" required> I checked the affected hosts.</label>
         <button class="btn btn-warning" type="submit">Acknowledge result</button>
     </form>

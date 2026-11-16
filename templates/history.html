@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_outcome.html' import badge %}
 {% block title %}History — AnsiblePower{% endblock %}
 
 {% block content %}
@@ -25,6 +26,7 @@
                 <th class="history-sortable" data-sort-col="0" data-sort-type="time" style="cursor:pointer;user-select:none;">Time <span class="sort-indicator"></span></th>
                 <th class="history-sortable" data-sort-col="1" style="cursor:pointer;user-select:none;">Playbook <span class="sort-indicator"></span></th>
                 <th class="history-sortable" data-sort-col="2" style="cursor:pointer;user-select:none;">Action <span class="sort-indicator"></span></th>
+                <th>Outcome</th>
                 <th>Output</th>
                 <th>Re-run</th>
                 <th>Delete</th>
@@ -32,21 +34,20 @@
         </thead>
         <tbody id="history-tbody">
             {% for record in history|reverse %}
-            {# task 52: classify run status for row color-coding #}
-            {% set out = record.output | lower %}
-            {% if 'fatal:' in out or ('failed=0' not in out and 'failed=' in out) %}
-                {% set row_status = 'failed' %}
-            {% elif 'unreachable=0' not in out and 'unreachable' in out %}
-                {% set row_status = 'unreachable' %}
-            {% elif 'ok=' in out or 'play recap' in out %}
-                {% set row_status = 'success' %}
-            {% else %}
-                {% set row_status = 'unknown' %}
-            {% endif %}
+            {% set state = record.state | default(none) %}
+            {% set row_status = 'success' if state == 'succeeded' else (state if state in ['failed', 'launch_error', 'blocked', 'timed_out', 'canceled', 'interrupted', 'uncertain', 'queued', 'running'] else 'unknown') %}
             <tr class="history-row history-row--{{ row_status }}" data-record-id="{{ record.id }}">
                 <td class="history-time" data-time="{{ record.time }}" title="{{ record.time }}">{{ record.time }}</td>
                 <td>{{ record.playbook }}</td>
                 <td>{{ record.action }}</td>
+                <td>
+                    {{ badge(state) }}
+                    {% if record.job_id %}<a href="{{ url_for('main.job_page', job_id=record.job_id) }}">View run</a>{% endif %}
+                    <small class="d-block">Exit: {{ record.exit_code if record.exit_code is defined and record.exit_code is not none else 'Unknown' }}</small>
+                    <small class="d-block">Started: {{ record.started_at or 'Unknown' }}</small>
+                    <small class="d-block">Ended: {{ record.finished_at or 'Unknown' }}</small>
+                    <small class="d-block">Duration: {{ record.duration if record.duration is defined and record.duration is not none else 'Unknown' }}{% if record.duration is defined and record.duration is not none %} s{% endif %}</small>
+                </td>
                 <td>
                     <div class="history-output-wrapper">
                         <pre class="history-output" style="white-space: pre-wrap;">{{ record.output }}</pre>

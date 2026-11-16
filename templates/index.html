@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_outcome.html' import badge %}
 {% block title %}Playbooks — AnsiblePower{% endblock %}
 
 {% block content %}
@@ -9,7 +10,7 @@
         <summary>Recent runs</summary>
         <ul>
         {% for job in jobs %}
-            <li><a href="{{ url_for('main.job_page', job_id=job.id) }}">{{ job.playbook }} · {{ job.state }} · {{ job.created_at }}</a></li>
+            <li><a href="{{ url_for('main.job_page', job_id=job.id) }}">{{ job.playbook }} · {{ badge(job.state) }} · {{ job.created_at }}</a></li>
         {% endfor %}
         </ul>
     </details>

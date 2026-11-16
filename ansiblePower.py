@@ -27,6 +27,7 @@ from utils import (
     HOSTS_FILE,
     HISTORY_FILE,
     MAX_IMPORT_HISTORY_RECORDS,
+    HISTORY_FIELDS,
     logger,
     load_config,
     save_config,
@@ -472,14 +473,11 @@ def export_history():
     if export_format == "csv":
         si = StringIO()
         cw = csv.writer(si)
-        cw.writerow(["time", "playbook", "action", "output"])
+        fields = ("time", "playbook", "action", "output", "state", "exit_code",
+                  "started_at", "finished_at", "duration", "job_id")
+        cw.writerow(fields)
         for record in history_data:
-            cw.writerow([
-                record.get("time", ""),
-                record.get("playbook", ""),
-                record.get("action", ""),
-                record.get("output", "")
-            ])
+            cw.writerow([record.get(field, "") for field in fields])
         output = si.getvalue()
         return Response(output, mimetype="text/csv",
                         headers={"Content-Disposition": "attachment;filename=history.csv"})
@@ -524,7 +522,7 @@ def import_history():
         # Security (closes #23): cap imported history records to prevent DoS / OOM
         if len(data) > MAX_IMPORT_HISTORY_RECORDS:
             return jsonify({"error": f"Import exceeds maximum limit of {MAX_IMPORT_HISTORY_RECORDS} records."}), 400
-        valid_keys = {"action", "playbook", "output", "time"}
+        valid_keys = set(HISTORY_FIELDS)
         for record in data:
             if not isinstance(record, dict):
                 return jsonify({"error": "Invalid record format: each entry must be a dictionary."}), 400
@@ -574,7 +572,7 @@ def _wants_json():
     if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return True
     best = request.accept_mimetypes.best_match(["application/json", "text/html"])
-    return best == "application/json" or request.path.startswith(("/run_playbook", "/show_playbook", "/settings/"))
+    return best == "application/json" or request.path.startswith(("/run_playbook", "/show_playbook", "/settings/", "/jobs/"))
 
 @app.errorhandler(400)
 def bad_request_error(error):

@@ -1,0 +1,11 @@
+{% macro badge(state, id=none) -%}
+{% set outcomes = {
+    'queued': ('Queued', 'info'), 'running': ('Running', 'info'),
+    'succeeded': ('Succeeded', 'success'), 'failed': ('Failed', 'danger'),
+    'launch_error': ('Launch error', 'danger'), 'blocked': ('Blocked', 'danger'),
+    'timed_out': ('Timed out', 'danger'), 'canceled': ('Canceled', 'warning'),
+    'interrupted': ('Interrupted', 'warning'), 'uncertain': ('Uncertain', 'warning')
+} %}
+{% set label, tone = outcomes.get(state, ('Unknown', 'secondary')) %}
+<span {% if id %}id="{{ id }}"{% endif %} class="badge badge-{{ tone }}">{{ label }}</span>
+{%- endmacro %}

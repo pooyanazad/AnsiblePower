@@ -902,16 +902,16 @@ class TestHistoryExport(unittest.TestCase):
             reader = list(csv.reader(StringIO(content)))
             self.assertGreaterEqual(len(reader), 3)
             # Header check
-            self.assertEqual(reader[0], ["time", "playbook", "action", "output"])
+            self.assertEqual(reader[0][:4], ["time", "playbook", "action", "output"])
             # First record
-            self.assertEqual(reader[1], [
+            self.assertEqual(reader[1][:4], [
                 "2026-10-14 10:00:00",
                 "site.yml",
                 "run",
                 "ok: [web1]\nchanged: 0\nfailed: 0",
             ])
             # Second record
-            self.assertEqual(reader[2], [
+            self.assertEqual(reader[2][:4], [
                 "2026-10-14 11:30:00",
                 "deploy.yml",
                 "run",
@@ -927,7 +927,7 @@ class TestHistoryExport(unittest.TestCase):
             content = resp.data.decode("utf-8")
             reader = list(csv.reader(StringIO(content)))
             self.assertEqual(len(reader), 1)
-            self.assertEqual(reader[0], ["time", "playbook", "action", "output"])
+            self.assertEqual(reader[0][:4], ["time", "playbook", "action", "output"])
 
 
 
@@ -944,10 +944,10 @@ class TestHistoryRowColorCoding(unittest.TestCase):
             login_session["auth_token"] = auth.start_session(
                 ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
-    def _get_history_html(self, output_text):
+    def _get_history_html(self, output_text, state=None):
         """Patch load_history to return a single record, then GET /history/."""
         record = {"action": "run", "playbook": "test.yml",
-                  "time": "2026-09-24 12:00:00", "output": output_text}
+                  "time": "2026-09-24 12:00:00", "output": output_text, "state": state}
         with patch("ansiblePower.load_history", return_value=[record]):
             resp = self.client.get("/history/")
         self.assertEqual(resp.status_code, 200)
@@ -956,20 +956,20 @@ class TestHistoryRowColorCoding(unittest.TestCase):
     def test_success_row_class(self):
         """Rows with 'ok=' and no failures get the --success class."""
         html = self._get_history_html(
-            "PLAY RECAP\nlocalhost : ok=3 changed=0 unreachable=0 failed=0"
+            "PLAY RECAP\nlocalhost : ok=3 changed=0 unreachable=0 failed=0", "succeeded"
         )
         self.assertIn("history-row--success", html)
 
     def test_failed_row_class(self):
         """Rows with failed>0 get the --failed class."""
         html = self._get_history_html(
-            "PLAY RECAP\nlocalhost : ok=1 changed=0 unreachable=0 failed=1"
+            "PLAY RECAP\nlocalhost : ok=1 changed=0 unreachable=0 failed=1", "failed"
         )
         self.assertIn("history-row--failed", html)
 
     def test_fatal_row_class(self):
         """Rows with 'fatal:' get the --failed class."""
-        html = self._get_history_html("fatal: [localhost]: UNREACHABLE!")
+        html = self._get_history_html("fatal: [localhost]: UNREACHABLE!", "failed")
         # 'unreachable' is in the text but the primary marker is fatal:
         # Jinja checks 'fatal:' under the failed branch
         self.assertIn("history-row--failed", html)
@@ -977,9 +977,9 @@ class TestHistoryRowColorCoding(unittest.TestCase):
     def test_unreachable_row_class(self):
         """Rows with unreachable>0 get the --unreachable class."""
         html = self._get_history_html(
-            "PLAY RECAP\nlocalhost : ok=0 changed=0 unreachable=1 failed=0"
+            "PLAY RECAP\nlocalhost : ok=0 changed=0 unreachable=1 failed=0", "failed"
         )
-        self.assertIn("history-row--unreachable", html)
+        self.assertIn("history-row--failed", html)
 
     def test_unknown_row_class(self):
         """Rows with no Ansible keywords get the --unknown class."""
