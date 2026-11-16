@@ -207,3 +207,39 @@ def test_legacy_history_has_no_inferred_outcome(patched_paths):
     utils.add_history_record({"action": "run", "playbook": "old.yml", "time": "old", "output": "ok=2 failed=0"})
     result = utils.load_history()[0]
     assert result["state"] is None and result["exit_code"] is None
+
+
+def test_cancel_queued_job_is_atomic_and_never_launches(flask_client, spec):
+    job, _ = jobs.enqueue(spec, "cancel-queued")
+    response = flask_client.post(f"/jobs/{job['id']}/cancel")
+    assert response.status_code == 200
+    result = response.json
+    assert result["state"] == "canceled" and result["cancel_requested"]
+    assert result["started_at"] is None and result["exit_code"] is None
+    assert result["finished_at"] and result["duration"] is None
+    assert not worker.run_one(utils.get_history_db_file(), "/missing/binary")
+    assert flask_client.post(f"/jobs/{job['id']}/cancel").status_code == 200
+    assert len(utils.load_history()) == 1
+
+
+def test_cancel_committed_before_completion_wins(flask_client, spec):
+    job, _ = jobs.enqueue(spec, "cancel-race")
+    database = utils.get_history_db_file()
+    jobs.claim(database)
+    response = flask_client.post(f"/jobs/{job['id']}/cancel")
+    assert response.status_code == 202
+    assert response.json["state"] == "running" and response.json["cancel_requested"]
+    jobs.finish(database, job["id"], "succeeded", "ok=1 failed=0", 0)
+    result = jobs.get(job["id"])
+    assert result["state"] == "canceled" and result["exit_code"] == 0
+    assert utils.load_history()[0]["state"] == "canceled"
+
+
+def test_cancel_does_not_relabel_completed_failure(flask_client, spec):
+    job, _ = jobs.enqueue(spec, "already-failed")
+    database = utils.get_history_db_file()
+    jobs.claim(database)
+    jobs.finish(database, job["id"], "failed", "syntax error", 4)
+    assert flask_client.post(f"/jobs/{job['id']}/cancel").status_code == 409
+    assert flask_client.post("/jobs/missing/cancel").status_code == 404
+    assert jobs.get(job["id"])["state"] == "failed"

@@ -86,3 +86,36 @@ def test_worker_crash_before_registration_never_releases_command(tmp_path):
     assert process.wait(timeout=5) == -signal.SIGKILL
     time.sleep(0.3)
     assert not marker.exists()
+
+
+@pytest.mark.parametrize("reason", ["canceled", "interrupted"])
+def test_live_run_stops_children_and_records_distinct_outcome(patched_paths, reason):
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+
+    directory = Path(patched_paths["base"])
+    marker = directory / "child-survived"
+    child = f"import time,pathlib; print('child ready', flush=True); time.sleep(1.5); pathlib.Path({str(marker)!r}).touch()"
+    fake = directory / "fake-ansible"
+    fake.write_text(f"#!{sys.executable}\nimport subprocess,sys,time\nsubprocess.Popen([sys.executable, '-c', {child!r}])\ntime.sleep(30)\n")
+    fake.chmod(0o700)
+    path = Path(patched_paths["playbooks_dir"]) / "sample.yml"
+    spec = {"playbook": path.name, "playbook_path": str(path), "playbook_digest": jobs.digest(path.read_bytes()),
+            "execution_mode": "local"}
+    job, _ = jobs.enqueue(spec, reason)
+    stopping = threading.Event()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(worker.run_one, utils.get_history_db_file(), str(fake), 20, stopping)
+        eventually(lambda: "child ready" in jobs.get(job["id"])["output"])
+        if reason == "canceled":
+            jobs.cancel(job["id"])
+        else:
+            stopping.set()
+        assert future.result(timeout=5)
+    result = jobs.get(job["id"])
+    assert result["state"] == reason
+    assert "child ready" in result["output"]
+    assert result["exit_code"] < 0 and result["duration"] >= 0
+    assert utils.load_history()[0]["state"] == reason
+    time.sleep(1.6)
+    assert not marker.exists()

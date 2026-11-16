@@ -242,7 +242,7 @@ def run_playbook():
     except jobs.QueueFull as exc:
         return jsonify({"error": str(exc)}), 503
     job_url = url_for("main.job_page", job_id=job["id"])
-    response = jsonify({"job_id": job["id"], "url": job_url,
+    response = jsonify({**job, "job_id": job["id"], "url": job_url,
                         "status_url": url_for("main.job_status", job_id=job["id"]),
                         "state": job["state"], "duplicate": not created})
     response.headers["Location"] = job_url
@@ -266,6 +266,16 @@ def job_status(job_id):
     if job["state"] == "blocked":
         job["repair"] = {"label": "Repair configuration in Settings", "url": url_for("settings.settings")}
     return jsonify(job)
+
+
+@main_bp.route("/jobs/<job_id>/cancel", methods=["POST"])
+def cancel_job(job_id):
+    result = jobs.cancel(job_id)
+    if result is None:
+        return jsonify({"error": "Job not found"}), 404
+    if result is False:
+        return jsonify({"error": "This run has already finished"}), 409
+    return jsonify(result), 202 if result["state"] == "running" else 200
 
 
 @main_bp.route("/jobs/<job_id>/acknowledge", methods=["POST"])

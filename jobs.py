@@ -164,6 +164,10 @@ def finish(database, job_id, state, output, exit_code=None):
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM jobs WHERE id = ? AND state = 'running'", (job_id,)).fetchone()
         if row:
+            # A cancellation committed before completion wins this race.
+            if row["cancel_requested"] and state in {"succeeded", "failed"}:
+                state = "canceled"
+                output += "\nCancellation requested before completion. Remote work may still be running."
             record_result(conn, row, state, output, exit_code)
         conn.commit()
 
@@ -208,3 +212,28 @@ def acknowledge(job_id):
             AND state IN ('uncertain', 'interrupted') AND acknowledged_at IS NULL""", (now(), job_id))
         conn.commit()
         return result.rowcount == 1
+
+
+def cancel(job_id):
+    """Cancel queued jobs atomically or ask the group owner to stop a live run."""
+    with connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        if not row:
+            return None
+        if row["state"] not in {"queued", "running", "canceled"}:
+            return False
+        conn.execute("UPDATE jobs SET cancel_requested = 1 WHERE id = ?", (job_id,))
+        if row["state"] == "queued":
+            record_result(conn, row, "canceled", "Canceled before a local process was started.")
+        conn.commit()
+        return public(conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone())
+
+
+def cancellation_requested(database, job_id):
+    # The claim has already initialized the schema; polling needs no DDL locks.
+    conn = sqlite3.connect(database, timeout=5)
+    try:
+        return bool(conn.execute("SELECT cancel_requested FROM jobs WHERE id = ?", (job_id,)).fetchone()[0])
+    finally:
+        conn.close()

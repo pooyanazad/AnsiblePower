@@ -146,14 +146,26 @@ def execute(job, binary, timeout):
         return run_command(command, descriptors, timeout)
 
 
-def run_one(database, binary, timeout=300):
+def run_one(database, binary, timeout=300, stopping=None):
     job = jobs.claim(database)
     if not job:
         return False
+    def stop_reason():
+        if jobs.cancellation_requested(database, job["id"]):
+            return "canceled"
+        if stopping is not None and stopping.is_set():
+            return "interrupted"
+        return None
+
     job["database"] = database
+    job["stop_reason"] = stop_reason
     exit_code = None
     try:
-        state, output, exit_code = execute(job, binary, timeout)
+        reason = stop_reason()
+        if reason:
+            state, output = reason, "Run stopped before a local process was started."
+        else:
+            state, output, exit_code = execute(job, binary, timeout)
     except RunLaunchError as exc:
         state, output = "launch_error", str(exc)
     except RunBlocked as exc:
@@ -174,14 +186,14 @@ def serve(database, binary, concurrency=1, timeout=300):
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
             raise RuntimeError("Another worker already owns this queue") from exc
-        jobs.recover(database)
         stopping = threading.Event()
         for signum in (signal.SIGTERM, signal.SIGINT):
             signal.signal(signum, lambda *_: stopping.set())
+        jobs.recover(database)
 
         def consume():
             while not stopping.is_set():
-                if not run_one(database, binary, timeout):
+                if not run_one(database, binary, timeout, stopping):
                     stopping.wait(0.5)
 
         with ThreadPoolExecutor(max_workers=concurrency) as pool:
