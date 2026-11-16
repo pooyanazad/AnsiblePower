@@ -5,7 +5,9 @@ const vm = require('node:vm');
 const source = fs.readFileSync('static/js/main.js', 'utf8');
 
 async function check() {
-    let loaded, clicked, response, destination;
+    let loaded, clicked, response, destination, sent, confirmation, networkError;
+    const storage = new Map();
+    const modeSelector = {value: 'inventory'};
     const toasts = [];
     const button = {
         textContent: 'Re-run', getAttribute: () => 'sample.yml',
@@ -16,11 +18,20 @@ async function check() {
             addEventListener: (event, handler) => { loaded = handler; },
             querySelector: () => null,
             querySelectorAll: selector => selector === '.history-rerun-btn' ? [button] : [],
-            getElementById: () => null,
+            getElementById: id => id === 'history-execution-mode' ? modeSelector : null,
             documentElement: {classList: {contains: () => false}}
         },
-        confirm: () => true,
-        fetch: async () => ({json: async () => response}),
+        confirm: message => { confirmation = message; return true; },
+        sessionStorage: {
+            getItem: key => storage.get(key),
+            setItem: (key, value) => storage.set(key, value),
+            removeItem: key => storage.delete(key)
+        },
+        fetch: async (url, options) => {
+            sent = {url, ...options};
+            if (networkError) throw networkError;
+            return {ok: !response.error, status: response.error ? 503 : 202, json: async () => response};
+        },
         location: {assign: url => { destination = url; }},
         setTimeout: () => {},
     };
@@ -59,6 +70,38 @@ async function check() {
     await new Promise(setImmediate);
     assert.equal(toasts.at(-1).type, 'error');
     assert.equal(button.disabled, false);
+    // Re-runs require an explicit Local selection and retain the submission
+    // identity after network or server failure, even if the job finished meanwhile.
+    modeSelector.value = 'local';
+    networkError = new Error('Response lost');
+    clicked();
+    await new Promise(setImmediate);
+    const retryKey = sent.headers['Idempotency-Key'];
+    assert.ok(retryKey);
+    assert.ok(confirmation.includes('this control node'));
+    assert.ok(sent.body.includes('execution_mode=local'));
+    assert.equal(storage.get('pending-run:local:sample.yml'), retryKey);
+    networkError = null;
+    response = {error: 'Temporary server error'};
+    clicked();
+    await new Promise(setImmediate);
+    assert.equal(sent.headers['Idempotency-Key'], retryKey);
+    assert.equal(storage.get('pending-run:local:sample.yml'), retryKey);
+    response = {url: '/jobs/original-job', state: 'failed'};
+    clicked();
+    await new Promise(setImmediate);
+    assert.equal(sent.headers['Idempotency-Key'], retryKey);
+    assert.equal(destination, '/jobs/original-job');
+    assert.equal(storage.has('pending-run:local:sample.yml'), false);
+    assert.notEqual(toasts.at(-1).type, 'success');
+    modeSelector.value = 'inventory';
+    clicked();
+    await new Promise(setImmediate);
+    assert.ok(confirmation.includes('configured inventory'));
+    assert.ok(sent.body.includes('execution_mode=inventory'));
+    response = {error: 'Inventory missing', repair: {url: '/settings/', label: 'Repair inventory'}};
+    const blocked = await context.submitPlaybook('sample.yml', 'inventory', 'csrf');
+    assert.equal(blocked.repair.url, '/settings/');
     // Polling renders the actual terminal result, timings, and toast tone.
     for (const state of ['failed', 'launch_error', 'timed_out', 'canceled', 'interrupted', 'succeeded']) {
         const elements = {};

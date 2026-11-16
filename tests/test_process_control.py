@@ -25,18 +25,23 @@ def eventually(check, timeout=5):
 
 @pytest.mark.parametrize("parent_exits", [False, True])
 def test_escalates_for_stubborn_descendant(tmp_path, parent_exits):
-    marker = tmp_path / "survived"
-    child = ("import signal,time,pathlib; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
-             f"print('child ready', flush=True); time.sleep(1.5); pathlib.Path({str(marker)!r}).touch()")
-    script = (f"import subprocess,sys,time; subprocess.Popen([sys.executable, '-c', {child!r}]); "
-              + ("time.sleep(0.3)" if parent_exits else "time.sleep(20)"))
-    started = time.monotonic()
-    state, output, code = worker.run_command([sys.executable, "-c", script], (), 0.4, grace=0.2)
-    assert time.monotonic() - started < 3
+    # The parent waits for the child to install its TERM handler before exiting.
+    # A generous command deadline separates normal parent exit from timeout;
+    # CPU scheduling and coverage instrumentation must not decide the outcome.
+    child = ("import os,signal,sys,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+             "print('child ready', flush=True); os.write(int(sys.argv[1]), b'1'); "
+             "os.close(int(sys.argv[1])); time.sleep(60)")
+    script = ("import os,subprocess,sys,time; read_fd,write_fd=os.pipe(); "
+              f"subprocess.Popen([sys.executable, '-c', {child!r}, str(write_fd)], pass_fds=(write_fd,)); "
+              "os.close(write_fd); assert os.read(read_fd, 1) == b'1'; os.close(read_fd); "
+              + ("sys.exit(0)" if parent_exits else "time.sleep(60)"))
+    owners = []
+    state, output, code = worker.run_command([sys.executable, "-c", script], (),
+                                           10 if parent_exits else 5, grace=0.2, on_start=owners.append)
     assert state == ("succeeded" if parent_exits else "timed_out")
+    assert code == (0 if parent_exits else -signal.SIGTERM)
     assert "child ready" in output
-    time.sleep(1.6)
-    assert not marker.exists()
+    assert not process_control.group_alive(owners[0])
 
 
 def test_restart_keeps_partial_logs_and_stops_orphan_group(patched_paths):

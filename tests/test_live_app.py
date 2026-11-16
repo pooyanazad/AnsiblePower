@@ -31,8 +31,12 @@ def live_server(isolated_auth):
         hosts = utils.HOSTS_FILE
         with open(hosts, "w") as stream:
             stream.write("[local]\nlocalhost ansible_connection=local\n")
+        playbooks = os.path.join(base, "playbooks")
+        os.mkdir(playbooks)
+        with open(os.path.join(playbooks, "sample.yml"), "w") as stream:
+            stream.write("- name: Sample playbook\n  hosts: all\n  gather_facts: false\n  tasks: []\n")
         with open(config, "w") as stream:
-            json.dump({"playbooks_dir": ansiblePower.DEFAULT_PLAYBOOKS_DIR, "hosts_file": hosts}, stream)
+            json.dump({"playbooks_dir": playbooks, "hosts_file": hosts}, stream)
         monkeypatch.setattr(utils, "CONFIG_FILE", config)
         monkeypatch.setattr(utils, "HISTORY_FILE", os.path.join(base, "history.json"))
         monkeypatch.setitem(ansiblePower.app.config, "AUTH_DATABASE", os.path.join(base, "auth.db"))
@@ -43,8 +47,19 @@ def live_server(isolated_auth):
         runner = os.path.join(base, "ansible-playbook-test")
         with open(runner, "w") as stream:
             stream.write(f"#!{sys.executable}\n"
-                         "import pathlib, sys\n"
-                         "assert 'localhost' in pathlib.Path(sys.argv[sys.argv.index('-i') + 1]).read_text()\n"
+                         "import pathlib, sys, time\n"
+                         "target = sys.argv[sys.argv.index('-i') + 1]\n"
+                         "if target == 'localhost,':\n"
+                         "    assert '--connection=local' in sys.argv and '--limit' in sys.argv\n"
+                         "else:\n"
+                         "    assert 'localhost' in pathlib.Path(target).read_text()\n"
+                         "content = pathlib.Path(sys.argv[1]).read_text()\n"
+                         "print('started safely', flush=True)\n"
+                         "if '# slow' in content: time.sleep(30)\n"
+                         "if '# failed' in content:\n"
+                         "    print('good : ok=1 failed=0 unreachable=0')\n"
+                         "    print('bad : ok=1 failed=1 unreachable=0')\n"
+                         "    sys.exit(2)\n"
                          "print('PLAY RECAP: localhost : ok=1 changed=0 unreachable=0 failed=0')\n")
         os.chmod(runner, 0o700)
         auth.create_admin(ansiblePower.app.config["AUTH_DATABASE"], "admin", "live test password")
@@ -56,7 +71,7 @@ def live_server(isolated_auth):
 
         def consume():
             while not stop_worker.is_set():
-                if not worker.run_one(utils.get_history_db_file(), runner):
+                if not worker.run_one(utils.get_history_db_file(), runner, stopping=stop_worker):
                     stop_worker.wait(0.05)
 
         worker_thread = threading.Thread(target=consume, daemon=True)
@@ -159,6 +174,84 @@ def test_endpoints():
     assert "content" in data, "Hosts file missing content"
     
     print("All functional and GUI tests passed successfully!")
+
+
+def wait_for_job(job, expected, timeout=10):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result = session.get(BASE_URL + job["status_url"], timeout=2).json()
+        if result["state"] in expected:
+            return result
+        time.sleep(0.05)
+    pytest.fail(f"Run never reached {expected}: {result}")
+
+
+def test_authenticated_workflow_reports_failure_cancels_and_repairs_inventory():
+    """Real HTTP, real CSRF, and a harmless worker process exercise the UI APIs."""
+    from pathlib import Path
+
+    token = get_csrf_token()
+    headers = {'X-CSRFToken': token}
+    playbooks = Path(utils.get_playbooks_dir())
+    for name, comment in (("failed.yml", "# failed"), ("slow.yml", "# slow")):
+        (playbooks / name).write_text(comment + "\n- hosts: all\n  tasks: []\n")
+
+    assert session.get(BASE_URL + '/static/js/main.js', timeout=2).status_code == 200
+    assert session.get(BASE_URL + '/static/css/styles.css', timeout=2).status_code == 200
+    original_config = Path(utils.CONFIG_FILE).read_bytes()
+    rejected = session.post(BASE_URL + '/settings/update_hosts_file',
+                            data={'hosts_file': utils.CONFIG_FILE}, headers=headers, timeout=2)
+    assert rejected.status_code == 400 and Path(utils.CONFIG_FILE).read_bytes() == original_config
+    inventory_text = '[local]\nlocalhost ansible_connection=local\n'
+    assert session.post(BASE_URL + '/settings/save_hosts', data={'content': inventory_text},
+                        headers=headers, timeout=2).status_code == 200
+    assert session.get(BASE_URL + '/settings/get_hosts', timeout=2).json()['content'] == inventory_text
+
+    launched = session.post(BASE_URL + '/run_playbook', data={'playbook': 'failed.yml'}, headers=headers, timeout=2)
+    assert launched.status_code == 202
+    failed = wait_for_job(launched.json(), {'failed'})
+    assert failed['exit_code'] == 2 and failed['duration'] >= 0
+    assert failed['started_at'] and failed['finished_at']
+    assert 'good : ok=1 failed=0' in failed['output'] and 'bad : ok=1 failed=1' in failed['output']
+    detail = session.get(BASE_URL + launched.json()['url'], timeout=2)
+    soup = BeautifulSoup(detail.text, 'html.parser')
+    assert soup.find(id='job-state').text == 'Failed'
+    assert 'badge-danger' in soup.find(id='job-state')['class']
+    history = session.get(BASE_URL + '/history/', timeout=2).text
+    assert 'history-row--failed' in history and 'history-row--success' not in history
+
+    launched = session.post(BASE_URL + '/run_playbook', data={'playbook': 'slow.yml'}, headers=headers, timeout=2)
+    assert launched.status_code == 202
+    live = wait_for_job(launched.json(), {'running'})
+    deadline = time.monotonic() + 10
+    while 'started safely' not in live['output']:
+        assert time.monotonic() < deadline
+        time.sleep(0.05)
+        live = session.get(BASE_URL + launched.json()['status_url'], timeout=2).json()
+    assert session.post(BASE_URL + f"/jobs/{live['id']}/cancel", timeout=2).status_code == 400
+    canceled = session.post(BASE_URL + f"/jobs/{live['id']}/cancel", headers=headers, timeout=2)
+    assert canceled.status_code == 202 and canceled.json()['cancel_requested']
+    result = wait_for_job(launched.json(), {'canceled'})
+    assert result['exit_code'] < 0 and 'started safely' in result['output']
+
+    hosts = Path(utils.get_hosts_file())
+    hosts.unlink()
+    rejected = session.post(BASE_URL + '/run_playbook', data={'playbook': 'sample.yml'}, headers=headers, timeout=2)
+    assert rejected.status_code == 404 and rejected.json()['repair']['url'] == '/settings/'
+    # Only explicit Local mode can run while inventory is missing.
+    local = session.post(BASE_URL + '/run_playbook', data={'playbook': 'sample.yml', 'execution_mode': 'local'},
+                         headers=headers, timeout=2)
+    assert local.status_code == 202
+    assert wait_for_job(local.json(), {'succeeded'})['exit_code'] == 0
+    hosts.write_text(inventory_text)
+    exported = session.get(BASE_URL + '/history/export_history', timeout=2).json()
+    assert {record['state'] for record in exported} == {'failed', 'canceled', 'succeeded'}
+    assert all(record['started_at'] and record['finished_at'] and record['duration'] >= 0 for record in exported)
+
+    assert session.post(BASE_URL + '/logout', headers=headers, timeout=2).status_code == 200
+    assert session.get(BASE_URL + '/history/export_history', timeout=2).status_code == 401
+    assert session.get(BASE_URL + launched.json()['status_url'], timeout=2).status_code == 401
+    assert session.get(BASE_URL + '/health', timeout=2).json() == {'status': 'ok'}
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))

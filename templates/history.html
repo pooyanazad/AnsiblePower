@@ -20,6 +20,13 @@
         <input type="text" id="history-search" class="form-control"
                placeholder="🔍 Filter by playbook name or output…" autocomplete="off">
     </div>
+    <div class="mb-3">
+        <label for="history-execution-mode">Re-run target</label>
+        <select id="history-execution-mode" class="form-control">
+            <option value="inventory">Inventory — configured hosts</option>
+            <option value="local">Local — this control node</option>
+        </select>
+    </div>
     <table class="table table-striped" id="history-table">
         <thead>
             <tr>

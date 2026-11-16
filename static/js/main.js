@@ -52,6 +52,28 @@ function jobPresentation(job) {
             toast: job.state === 'succeeded' ? 'success' : (tone === 'danger' ? 'error' : 'info')};
 }
 
+// Keep retries attached to one durable job, including history re-runs.
+async function submitPlaybook(playbook, mode, csrfToken) {
+    const pendingKey = 'pending-run:' + mode + ':' + playbook;
+    const submissionId = sessionStorage.getItem(pendingKey) ||
+        (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
+    sessionStorage.setItem(pendingKey, submissionId);
+    const response = await fetch('/run_playbook', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': csrfToken,
+            'Idempotency-Key': submissionId
+        },
+        body: 'playbook=' + encodeURIComponent(playbook) + '&execution_mode=' + encodeURIComponent(mode)
+    });
+    const data = await response.json();
+    // A lost or uncertain server response must keep the key for reconciliation.
+    if (response.status < 500) sessionStorage.removeItem(pendingKey);
+    if (!response.ok) return {error: data.error || 'Could not submit run.', repair: data.repair};
+    return data;
+}
+
 window.showToast = function(message, type = 'info') {
     const container = document.getElementById('toast-container');
     if (!container) return;
@@ -115,22 +137,8 @@ document.addEventListener("DOMContentLoaded", function(){
             btn.disabled = true;
             btn.innerHTML = '<span class="run-spinner"></span>Running&hellip;';
 
-            const pendingKey = 'pending-run:' + mode + ':' + playbook;
-            const submissionId = sessionStorage.getItem(pendingKey) ||
-                (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
-            sessionStorage.setItem(pendingKey, submissionId);
-            fetch("/run_playbook", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    "X-CSRFToken": csrfToken,
-                    "Idempotency-Key": submissionId
-                },
-                body: "playbook=" + encodeURIComponent(playbook) + "&execution_mode=" + encodeURIComponent(mode)
-            })
-            .then(res => res.json())
+            submitPlaybook(playbook, mode, csrfToken)
             .then(data => {
-                sessionStorage.removeItem(pendingKey);
                 if (data.url) {
                     window.location.assign(data.url);
                     return;
@@ -586,19 +594,13 @@ document.addEventListener("DOMContentLoaded", function(){
     document.querySelectorAll('.history-rerun-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
             var playbook = btn.getAttribute('data-playbook');
-            if (!confirm("Run '" + playbook + "' again?")) return;
+            const selector = document.getElementById('history-execution-mode');
+            const mode = selector ? selector.value : 'inventory';
+            if (!confirm("Run '" + playbook + "' again on " + (mode === 'local' ? 'this control node' : 'the configured inventory') + "?")) return;
             var originalText = btn.textContent;
             btn.disabled = true;
             btn.textContent = 'Running…';
-            fetch('/run_playbook', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': csrfToken
-                },
-                body: 'playbook=' + encodeURIComponent(playbook)
-            })
-            .then(function(res) { return res.json(); })
+            submitPlaybook(playbook, mode, csrfToken)
             .then(function(data) {
                 if (data.url) {
                     showToast('Opening run status…', 'info');
@@ -609,8 +611,8 @@ document.addEventListener("DOMContentLoaded", function(){
                     btn.textContent = originalText;
                 }
             })
-            .catch(function() {
-                showToast('Could not connect to server.', 'error');
+            .catch(function(error) {
+                showToast(error.message || 'Could not connect to server.', 'error');
                 btn.disabled = false;
                 btn.textContent = originalText;
             });

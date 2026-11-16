@@ -148,7 +148,7 @@ def test_select_edit_read_and_run_a_valid_inventory(flask_client, patched_paths)
     private = Path(patched_paths["base"]) / "secret"
     private.write_bytes(b"untouched")
 
-    def execute(cmd, descriptors, timeout):
+    def execute(cmd, descriptors, timeout, **kwargs):
         snapshot = cmd[cmd.index("-i") + 1]
         assert snapshot != str(selected) and snapshot.endswith(".yaml")
         assert len(descriptors) == 1
@@ -157,12 +157,16 @@ def test_select_edit_read_and_run_a_valid_inventory(flask_client, patched_paths)
         selected.unlink()
         selected.symlink_to(private)
         assert Path(snapshot).read_text() == content
-        return "succeeded", "ok: safe inventory snapshot"
+        return "succeeded", "ok: safe inventory snapshot", 0
 
     with patch("worker.run_command", side_effect=execute) as run:
-        assert flask_client.post("/run_playbook", data={"playbook": "sample.yml"}).status_code == 202
+        response = flask_client.post("/run_playbook", data={"playbook": "sample.yml"})
+        assert response.status_code == 202
         worker.run_one(utils.get_history_db_file(), "ansible-playbook")
     run.assert_called_once()
+    result = flask_client.get(response.json["status_url"]).json
+    assert result["state"] == "succeeded" and result["exit_code"] == 0
+    assert result["output"] == "ok: safe inventory snapshot"
     assert private.read_bytes() == b"untouched"
     assert not list(Path(inventory.INVENTORY_DIR).glob(".ansiblepower-run-*"))
 

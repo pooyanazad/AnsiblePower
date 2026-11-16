@@ -129,7 +129,9 @@ Send an `Idempotency-Key` header when retrying an API launch. Reusing the key
 returns the original job, including after it finishes; changing its inputs
 returns 409. Submissions for an already queued or running playbook and execution
 target share that job even with different keys. The browser retains a pending
-key when a response is lost. Queued inputs are checked again before execution;
+key when a response is lost or the server returns an uncertain error, including
+history re-runs. Select the re-run target on History and confirm the displayed
+Inventory or Local target before submitting. Queued inputs are checked again before execution;
 changed or missing files block the run and require a new submission after repair.
 
 Use **Cancel run** on the run page, or `POST /jobs/<job_id>/cancel` with an
