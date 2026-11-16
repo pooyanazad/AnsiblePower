@@ -8,10 +8,10 @@ from pathlib import Path
 def proc_stat(pid):
     try:
         # comm may contain spaces and parentheses; fields after it start at #3.
-        fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
+        fields = Path(f"/proc/{pid}/stat").read_text(errors="replace").rsplit(")", 1)[1].split()
         return {"state": fields[0], "group": int(fields[2]), "session": int(fields[3]),
                 "start": int(fields[19])}
-    except (FileNotFoundError, ProcessLookupError):
+    except (FileNotFoundError, ProcessLookupError, PermissionError):
         return None
 
 
@@ -54,3 +54,8 @@ def terminate(owner, grace=2):
     while group_alive(owner) and time.monotonic() < deadline:
         time.sleep(0.05)
     send_group(owner, signal.SIGKILL)
+    deadline = time.monotonic() + 2
+    while group_alive(owner) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    if group_alive(owner):
+        raise RuntimeError("Could not confirm that the local process group stopped")

@@ -119,3 +119,63 @@ def test_live_run_stops_children_and_records_distinct_outcome(patched_paths, rea
     assert utils.load_history()[0]["state"] == reason
     time.sleep(1.6)
     assert not marker.exists()
+
+
+def test_real_worker_signal_interrupts_live_group(tmp_path):
+    """The service's actual signal handler drives cleanup, without a queue retry."""
+    import json
+    import sqlite3
+
+    database = str(tmp_path / "worker.db")
+    playbook = tmp_path / "playbook.yml"
+    playbook.write_text("- hosts: all\n  tasks: []\n")
+    # Enqueue into this test database without changing the service's CLI config.
+    from unittest.mock import patch
+    with patch("utils.get_history_db_file", return_value=database):
+        job, _ = jobs.enqueue({"playbook": playbook.name, "playbook_path": str(playbook),
+                               "playbook_digest": jobs.digest(playbook.read_bytes()), "execution_mode": "local"}, "signal")
+    binary = tmp_path / "fake-ansible"
+    binary.write_text(f"#!{sys.executable}\nimport time\nprint('running before signal', flush=True)\ntime.sleep(30)\n")
+    binary.chmod(0o700)
+    process = subprocess.Popen([sys.executable, "worker.py", "--database", database],
+                               env=dict(os.environ, ANSIBLE_PLAYBOOK_BIN=str(binary)))
+    try:
+        eventually(lambda: "running before signal" in jobs.read_log(database, job["id"]))
+        process.send_signal(signal.SIGTERM)
+        assert process.wait(timeout=8) == 0
+        with sqlite3.connect(database) as conn:
+            state, output, identity = conn.execute("SELECT state, output, process_identity FROM jobs").fetchone()
+            assert state == "interrupted" and "running before signal" in output
+            assert not process_control.group_alive(json.loads(identity))
+            assert conn.execute("SELECT state FROM playbook_runs").fetchone()[0] == "interrupted"
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=3)
+        jobs.recover(database)
+
+
+def test_cleanup_failure_cannot_be_reported_as_success(patched_paths, monkeypatch):
+    """If the kernel never confirms group exit, hold the result for review."""
+    path = Path(patched_paths["playbooks_dir"]) / "sample.yml"
+    job, _ = jobs.enqueue({"playbook": path.name, "playbook_path": str(path),
+                           "playbook_digest": jobs.digest(path.read_bytes()), "execution_mode": "local"}, "cleanup-failure")
+    binary = Path(patched_paths["base"]) / "fake-ansible"
+    binary.write_text(f"#!{sys.executable}\nprint('ok=1 failed=0', flush=True)\n")
+    binary.chmod(0o700)
+    def failed_cleanup(owner, grace):
+        raise RuntimeError("Could not confirm group exit")
+    monkeypatch.setattr(process_control, "terminate", failed_cleanup)
+    worker.run_one(utils.get_history_db_file(), str(binary))
+    result = jobs.get(job["id"])
+    assert result["state"] == "uncertain" and result["needs_review"]
+    assert "ok=1 failed=0" in result["output"]
+    assert utils.load_history()[0]["state"] == "uncertain"
+
+
+@pytest.mark.parametrize("timeout", ["nan", "inf", "0", "-1"])
+def test_worker_rejects_invalid_timeout(timeout):
+    result = subprocess.run([sys.executable, "worker.py", "--timeout", timeout],
+                            capture_output=True, text=True, timeout=5)
+    assert result.returncode == 2
+    assert "positive and finite" in result.stderr

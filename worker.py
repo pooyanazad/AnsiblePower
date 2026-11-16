@@ -1,6 +1,7 @@
 """Separate queue consumer. Start under Supervisor or your service manager."""
 import argparse
 import fcntl
+import math
 import os
 import signal
 import subprocess
@@ -8,7 +9,6 @@ import threading
 import sys
 import tempfile
 import time
-import json
 from concurrent.futures import FIRST_EXCEPTION, ThreadPoolExecutor, wait
 from contextlib import ExitStack
 
@@ -92,12 +92,14 @@ def run_command(command, descriptors, timeout, *, logfile=None, on_start=None,
                 time.sleep(0.1)
         finally:
             process.stdin.close()
-            if owner:
-                process_control.terminate(owner, grace)
-            else:
-                # No command was released through the gate.
-                process.kill()
-            process.wait(timeout=max(grace, 1) + 2)
+            try:
+                if owner:
+                    process_control.terminate(owner, grace)
+                else:
+                    # No command was released through the gate.
+                    process.kill()
+            finally:
+                process.wait(timeout=max(grace, 1) + 2)
         reader.seek(0)
         output = reader.read().decode("utf-8", errors="replace")
         error = os.read(error_read, 65536).decode("utf-8", errors="replace")
@@ -150,6 +152,7 @@ def run_one(database, binary, timeout=300, stopping=None):
     job = jobs.claim(database)
     if not job:
         return False
+
     def stop_reason():
         if jobs.cancellation_requested(database, job["id"]):
             return "canceled"
@@ -213,8 +216,8 @@ def main():
     parser.add_argument("--concurrency", type=int, default=int(os.environ.get("ANSIBLEPOWER_RUN_CONCURRENCY", "1")))
     parser.add_argument("--timeout", type=float, default=float(os.environ.get("ANSIBLEPOWER_RUN_TIMEOUT", "300")))
     args = parser.parse_args()
-    if not 1 <= args.concurrency <= 8 or args.timeout <= 0:
-        parser.error("concurrency must be 1–8 and timeout must be positive")
+    if not 1 <= args.concurrency <= 8 or not math.isfinite(args.timeout) or args.timeout <= 0:
+        parser.error("concurrency must be 1–8 and timeout must be positive and finite")
     serve(args.database, utils.find_ansible_playbook(), args.concurrency, args.timeout)
 
 

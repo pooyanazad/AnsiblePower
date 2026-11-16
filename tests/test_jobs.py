@@ -107,6 +107,7 @@ def test_crash_recovery_never_replays_and_requires_review(flask_client, spec):
     assert jobs.claim(database)["id"] == job["id"]
     jobs.recover(database)
     assert jobs.get(job["id"])["state"] == "interrupted"
+    assert "cleanup could not be verified" in jobs.get(job["id"])["output"]
     with patch("worker.run_command") as execute:
         assert not worker.run_one(database, "ansible-playbook")
     execute.assert_not_called()
@@ -243,3 +244,79 @@ def test_cancel_does_not_relabel_completed_failure(flask_client, spec):
     assert flask_client.post(f"/jobs/{job['id']}/cancel").status_code == 409
     assert flask_client.post("/jobs/missing/cancel").status_code == 404
     assert jobs.get(job["id"])["state"] == "failed"
+
+
+def test_repeated_uncertain_runs_keep_outcome_after_acknowledgment(spec):
+    database = utils.get_history_db_file()
+    ids = []
+    for number in range(3):
+        job, _ = jobs.enqueue(spec, f"uncertain-{number}")
+        ids.append(job["id"])
+        jobs.claim(database)
+        jobs.finish(database, job["id"], "uncertain", "result unavailable")
+        assert jobs.get(job["id"])["needs_review"]
+        assert jobs.acknowledge(job["id"])
+        result = jobs.get(job["id"])
+        assert result["state"] == "uncertain" and not result["needs_review"]
+    assert len(set(ids)) == 3
+    assert [row["state"] for row in utils.load_history()] == ["uncertain"] * 3
+
+
+@pytest.mark.parametrize("failure,expected", [
+    ("syntax", "failed"), ("missing", "launch_error"),
+    ("mixed", "failed"), ("timeout", "timed_out")
+])
+def test_real_failures_match_api_history_and_badges(flask_client, patched_paths, failure, expected):
+    playbook = Path(patched_paths["playbooks_dir"]) / "sample.yml"
+    if failure == "syntax":
+        playbook.write_text("- hosts: [unterminated\n")
+        binary = utils.find_ansible_playbook()
+    elif failure == "missing":
+        binary = str(Path(patched_paths["base"]) / "missing-ansible")
+    else:
+        binary = str(Path(patched_paths["base"]) / "fake-ansible")
+        Path(binary).write_text(f"#!{sys.executable}\nimport time\n"
+                                "print('good : ok=1 unreachable=0 failed=0', flush=True)\n"
+                                "print('bad : ok=1 unreachable=0 failed=1', flush=True)\n" +
+                                ("time.sleep(10)\n" if failure == "timeout" else "raise SystemExit(2)\n"))
+        Path(binary).chmod(0o700)
+    response = flask_client.post("/run_playbook", data={"playbook": "sample.yml", "execution_mode": "local"})
+    assert response.status_code == 202
+    assert response.json["state"] == "queued" and response.json["exit_code"] is None
+    worker.run_one(utils.get_history_db_file(), binary, timeout=0.3 if failure == "timeout" else 10)
+    result = flask_client.get(response.json["status_url"]).json
+    assert result["state"] == expected, result
+    assert result["exit_code"] != 0
+    assert (result["exit_code"] is None) == (failure == "missing")
+    assert result["started_at"] and result["finished_at"] and result["duration"] >= 0
+    if failure == "timeout":
+        assert 'good : ok=1' in result["output"]
+    history = utils.load_history()[0]
+    for key in ("state", "exit_code", "started_at", "finished_at", "duration", "output"):
+        assert result[key] == history[key]
+    for url in (response.json["url"], "/history/", "/"):
+        html = flask_client.get(url).text
+        assert 'badge-success' not in html
+    duplicate = flask_client.post("/run_playbook", data={"playbook": "sample.yml", "execution_mode": "local"},
+                                  headers={"Idempotency-Key": "new-request"})
+    # A finished failed run can be deliberately submitted again.
+    assert duplicate.json["state"] == "queued"
+
+
+@pytest.mark.parametrize("format", ["json", "csv"])
+def test_history_roundtrip_keeps_outcomes_and_legacy_nulls(flask_client, format):
+    from io import BytesIO
+
+    record = {"action": "run", "playbook": "sample.yml", "output": "syntax error", "time": "end",
+              "state": "failed", "exit_code": 4, "started_at": "start", "finished_at": "end", "duration": 1.25}
+    utils.add_history_record(record)
+    utils.add_history_record({"action": "run", "playbook": "old.yml", "output": "ok=5 failed=0", "time": "old"})
+    exported = flask_client.get(f"/history/export_history?format={format}")
+    response = flask_client.post("/history/import_history", data={
+        "file": (BytesIO(exported.data), f"history.{format}")}, content_type="multipart/form-data")
+    assert response.status_code == 200
+    current, legacy = utils.load_history()
+    for key, value in record.items():
+        assert current[key] == value
+    for key in ("state", "exit_code", "duration", "started_at", "finished_at"):
+        assert legacy[key] is None

@@ -119,7 +119,9 @@ with your other application data. Keep it on a local filesystem, not NFS.
 
 The runner defaults to one concurrent run and a 300-second timeout. Set
 `ANSIBLEPOWER_RUN_CONCURRENCY` (1–8) and `ANSIBLEPOWER_RUN_TIMEOUT` to change these.
-If increasing the timeout, also increase Supervisor's `stopwaitsecs` beyond it.
+SIGTERM and SIGINT stop active local process groups, first with SIGTERM and then
+SIGKILL after a two-second grace period. Keep your service manager's stop grace
+long enough for cleanup; the supplied Supervisor configuration allows 310 seconds.
 A second queue consumer is rejected by an exclusive lock. The queue holds up to
 100 pending or running jobs; submissions beyond that return 503.
 
@@ -130,11 +132,49 @@ target share that job even with different keys. The browser retains a pending
 key when a response is lost. Queued inputs are checked again before execution;
 changed or missing files block the run and require a new submission after repair.
 
-On a runner crash, in-flight jobs become **uncertain** and are never replayed
-automatically. Their execution target stays blocked until an administrator checks
-the affected hosts and acknowledges the result on the run page. Jobs that were
-still queued remain available for the restarted worker. Web-worker restarts do
-not affect running playbooks.
+Use **Cancel run** on the run page, or `POST /jobs/<job_id>/cancel` with an
+authenticated session and CSRF token. Queued jobs become **canceled** without
+starting a process. Running jobs first record a cancellation request; the runner
+then stops their local process group. A cancellation accepted before completion
+is recorded as canceled even if the process exits during that race. A completed
+job keeps its result. Repeating cancellation of a canceled job is harmless.
+
+Each command starts in its own local session/process group. The Linux runner
+records its PID, process start identity, and boot ID before releasing the command
+to execute. Partial stdout and stderr are written directly to private files in
+`data/history.db.logs/` and remain visible while running. Back up that directory
+with the database. Logs remain there after completion; deleting a history row
+does not remove its log file.
+
+On a runner crash, the restarted runner checks persisted process identities,
+stops surviving local groups, preserves partial logs, and marks in-flight jobs
+**interrupted**. Boot IDs and start identities prevent signaling a reused PID.
+For legacy in-flight jobs without a recorded process identity, the result
+explicitly says local cleanup could not be verified.
+Interrupted jobs and **uncertain** results are never replayed automatically;
+their execution target stays blocked until an administrator checks the affected
+hosts and acknowledges the result on the run page. Acknowledgment preserves the
+original outcome. Queued jobs remain available for the restarted worker.
+Web-worker restarts do not affect running playbooks. If the runner is forcibly
+killed, local cleanup waits until it restarts.
+
+**Stopping a runner cannot guarantee cancellation of work already started
+remotely.** SSH commands, asynchronous Ansible tasks, and work detached on a
+remote host can continue after the local process group stops. Check the affected
+hosts after cancellation, timeout, or interruption. Processes that deliberately
+leave the local session/process group also fall outside group cleanup.
+
+The status API, run page, Recent runs badges, history, and JSON/CSV exports use
+persisted lifecycle outcomes. `succeeded` means exit code 0; a nonzero Ansible
+exit is `failed`, including syntax errors. An executable that cannot start is
+`launch_error`; failed preflight checks are `blocked`. Timeout (`timed_out`),
+operator cancellation (`canceled`), and runner interruption (`interrupted`) stay
+distinct. Status and history include `exit_code`, `started_at`, `finished_at`,
+and `duration` in seconds. Fields that cannot be established stay null; queued
+cancellations have no start or duration. Legacy history without structured
+outcomes stays **Unknown**, even when its output contains a successful recap.
+HTTP 202 accepts a queued submission; HTTP 200 from the status endpoint means
+the status was read successfully. Neither is an execution-success signal.
 
 ---
 

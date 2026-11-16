@@ -210,8 +210,14 @@ def ensure_history_schema(conn):
 
 def _history_records_to_rows(history):
     """Keep structured outcomes when exporting and importing history."""
-    return [tuple(record.get(key, "" if key in HISTORY_FIELDS[:4] else None)
-                  for key in HISTORY_FIELDS) for record in history if isinstance(record, dict)]
+    rows = []
+    for record in history:
+        if isinstance(record, dict):
+            values = [record.get(key, "") for key in HISTORY_FIELDS[:4]]
+            # CSV uses empty strings for nullable outcome fields.
+            values.extend(record.get(key) if record.get(key) != "" else None for key in HISTORY_FIELDS[4:])
+            rows.append(tuple(values))
+    return rows
 
 
 def init_history_db():

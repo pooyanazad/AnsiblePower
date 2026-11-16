@@ -46,8 +46,6 @@ def connect(database=None):
                 started_at TEXT,
                 finished_at TEXT
             );
-            CREATE UNIQUE INDEX IF NOT EXISTS jobs_active_target
-                ON jobs(target_key) WHERE state IN ('queued', 'running', 'uncertain');
             CREATE TABLE IF NOT EXISTS job_submissions (
                 submission_key TEXT PRIMARY KEY,
                 fingerprint TEXT NOT NULL,
@@ -202,7 +200,9 @@ def recover(database):
         if row["process_identity"]:
             process_control.terminate(json.loads(row["process_identity"]))
         output = read_log(database, row["id"], row["output"])
-        message = "Run interrupted before its result was recorded. Local process group stopped; remote work may still be running. Check the affected hosts before acknowledging this run. It will not be replayed."
+        cleanup = ("Local process group stopped." if row["process_identity"] else
+                   "No process identity was recorded; local cleanup could not be verified.")
+        message = f"Run interrupted before its result was recorded. {cleanup} Remote work may still be running. Check the affected hosts before acknowledging this run. It will not be replayed."
         finish(database, row["id"], "interrupted", output + "\n" + message)
 
 
