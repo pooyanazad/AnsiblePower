@@ -39,5 +39,5 @@ case is also repeated ten times with coverage instrumentation.
 Stopping a local runner cannot guarantee cancellation of commands or asynchronous
 work already started remotely. Check affected hosts after timeout, cancellation,
 or interruption. Legacy in-flight jobs without recorded process identity report
-that local cleanup could not be verified. These limits also appear in the README
-and run page.
+that local cleanup could not be verified. The run page and operations guide
+describe these limits. [Cancellation and recovery](operations.md#cancellation-and-recovery)

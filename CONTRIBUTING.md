@@ -1,22 +1,27 @@
 # Contributing to ansible-power
 
-Thank you for your interest in improving **ansible-power**! 🎉
+Check the open issues and comment on the one you want to work on. Wait for a
+maintainer to assign it before starting. If you’re new to open source, pick one
+issue labeled `good first issue`. After your first pull request merges, leave
+other issues with that label for new contributors. [Open issues](https://github.com/pooyanazad/ansible-power/issues)
 
-We welcome contributions of all kinds, from bug fixes to new features and documentation improvements.
+## Develop locally
 
-## Getting Started
+Fork the repository and create a branch for your change. Use Python 3.12 and
+install the development dependencies in a virtual environment. Install Node.js
+to run the browser JavaScript regression tests invoked by pytest.
 
-1. **Find an Issue**: Check our [open issues](https://github.com/pooyanazad/ansible-power/issues) to find something you'd like to work on. **Please comment on an issue to get assigned by maintainers before starting work and opening a PR.**
-2. **Fork & Branch**: Once assigned, fork the repository and create a new branch for your feature or bug fix.
-3. **Test Your Changes**: Ensure that your code passes our CI pipeline (unit tests, formatting checks) and can run locally using Docker.
-4. **Submit a PR**: Open a Pull Request using our provided template.
+```bash
+python3.12 -m venv venv
+source venv/bin/activate
+python -m pip install -r requirements-dev.txt
+python -m pytest tests/ -v
+```
 
-## A Note on "Good First Issues" 🌟
+Use `make run` and `make worker` in separate terminals to work on the app locally.
+For changes to deployment, verify startup with Docker Compose as well. [Quick start](README.md#quick-start)
 
-To help welcome new developers to the open-source community, we tag beginner-friendly bugs with the `good first issue` label. 
+## Open a pull request
 
-If you are a junior developer or making your very first open-source contribution, we encourage you to pick **one** of these issues to get your feet wet! 
-
-Once you've successfully merged your first PR, we kindly ask that you leave the remaining `good first issue` tickets open for other beginners to learn from. If you're feeling adventurous after your first PR, please tackle our standard or more complex issues—we'd love your ongoing help there!
-
-Your contributions help make ansible-power better for everyone. Happy coding! 💻✨
+Use the pull request template. Link the issue, describe what changed, and report
+the checks you ran. Include screenshots for UI changes when they help reviewers.
