@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AnsiblePower — Lightweight web interface for managing Ansible playbooks."""
+"""ansible-power — Lightweight web interface for managing Ansible playbooks."""
 import os
 import re
 import json
@@ -619,7 +619,7 @@ def _ensure_dirs():
         os.makedirs(DEFAULT_PLAYBOOKS_DIR)
         sample_playbook = os.path.join(DEFAULT_PLAYBOOKS_DIR, "sample.yml")
         with open(sample_playbook, "w") as f:
-            f.write("---\n# Sample Ansible Playbook\n- name: Sample playbook\n  hosts: all\n  tasks:\n    - name: Print hello message\n      debug:\n        msg: \"Hello from AnsiblePower!\"\n")
+            f.write("---\n# Sample Ansible Playbook\n- name: Sample playbook\n  hosts: all\n  tasks:\n    - name: Print hello message\n      debug:\n        msg: \"Hello from ansible-power!\"\n")
     init_history_db()
     if not os.path.exists(CONFIG_FILE):
         save_config({"playbooks_dir": DEFAULT_PLAYBOOKS_DIR})

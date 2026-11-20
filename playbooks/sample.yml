@@ -7,7 +7,7 @@
   tasks:
     - name: Print hello message
       debug:
-        msg: "Hello from AnsiblePower! Ansible is working correctly."
+        msg: "Hello from ansible-power! Ansible is working correctly."
 
     - name: Show current date and time
       debug:

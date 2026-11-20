@@ -252,7 +252,7 @@ jobs:
           [ ${#TITLE} -gt 80 ] && TITLE="${TITLE:0:77}..."
 
           TOTAL=$((FEAT_C+FIX_C+REF_C+TEST_C+DOCS_C+MAINT_C))
-          B="We're happy to ship **AnsiblePower ${VERSION}**! "
+          B="We're happy to ship **ansible-power ${VERSION}**! "
           B="${B}This release includes **${TOTAL} changes** since ${PREV_TAG}."$'\n\n---\n\n'
           B="${B}## What's New in ${VERSION}"$'\n\n'
           [ -n "$FEAT"     ] && B="${B}### New Features"$'\n\n'"${FEAT}"$'\n'

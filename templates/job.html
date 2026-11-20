@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% from '_outcome.html' import badge %}
-{% block title %}Run {{ job.id }} — AnsiblePower{% endblock %}
+{% block title %}Run {{ job.id }} — ansible-power{% endblock %}
 {% block content %}
 <div class="mt-4" id="job-detail" data-status-url="{{ url_for('main.job_status', job_id=job.id) }}">
     <h1>{{ job.playbook }}</h1>

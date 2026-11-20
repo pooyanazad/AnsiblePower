@@ -15,7 +15,7 @@ inventories, databases, and harmless local processes.
 
 ## Failed CI run
 
-[Run 43895087032](https://github.com/pooyanazad/AnsiblePower/actions/runs/43895087032)
+[Run 43895087032](https://github.com/pooyanazad/ansible-power/actions/runs/43895087032)
 failed only `test_escalates_for_stubborn_descendant[True]`: a 0.4-second deadline
 included startup, coverage instrumentation and a 0.3-second sleep. The process
 was still alive at the deadline, so the runner correctly reported `timed_out`.

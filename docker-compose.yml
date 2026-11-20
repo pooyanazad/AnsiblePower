@@ -1,8 +1,8 @@
 services:
-  ansiblepower:
+  ansible-power:
     build: .
-    image: ansiblepower:latest
-    container_name: ansiblepower
+    image: ansible-power:latest
+    container_name: ansible-power
     ports:
       - "5000:5000"
     volumes:

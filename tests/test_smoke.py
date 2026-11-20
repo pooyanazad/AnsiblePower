@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Smoke Tests for AnsiblePower Application
+Smoke Tests for ansible-power Application
 
 These tests verify basic functionality and ensure the application
 can start and respond to basic requests without errors.
@@ -26,7 +26,7 @@ except ImportError as e:
 
 
 class SmokeTestAnsiblePower(unittest.TestCase):
-    """Smoke tests for AnsiblePower application"""
+    """Smoke tests for ansible-power application"""
 
     def setUp(self):
         """Set up test fixtures before each test method."""
@@ -86,7 +86,7 @@ class SmokeTestAnsiblePower(unittest.TestCase):
         """Test that the homepage loads successfully"""
         response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'AnsiblePower', response.data)
+        self.assertIn(b'ansible-power', response.data)
 
     def test_history_page_loads(self):
         """Test that the history page loads successfully"""

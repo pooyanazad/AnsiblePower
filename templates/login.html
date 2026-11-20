@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>Sign in · AnsiblePower</title>
+  <title>Sign in · ansible-power</title>
 </head>
 <body>
   <main>
-    <h1>Sign in to AnsiblePower</h1>
+    <h1>Sign in to ansible-power</h1>
     {% if error %}<p role="alert">{{ error }}</p>{% endif %}
     <form method="post" action="{{ url_for('login') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

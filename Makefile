@@ -1,4 +1,4 @@
-# AnsiblePower — developer convenience targets
+# ansible-power — developer convenience targets
 # Usage: make <target>
 # Requires: Python 3.9+, pip, Docker, docker compose
 
@@ -7,7 +7,7 @@
 # Default target — print help
 help:
 	@echo ""
-	@echo "  ⚡ AnsiblePower — available make targets"
+	@echo "  ⚡ ansible-power — available make targets"
 	@echo ""
 	@echo "  make run           Start the app locally (Flask dev server)"
 	@echo "  make worker        Start the playbook queue consumer"
@@ -46,9 +46,9 @@ lint:
 # Docker
 # ---------------------------------------------------------------------------
 
-## Build the Docker image tagged as ansiblepower:latest
+## Build the Docker image tagged as ansible-power:latest
 docker-build:
-	docker build -t ansiblepower:latest .
+	docker build -t ansible-power:latest .
 
 ## Build the image (if needed) and start all services in the background
 docker-up:

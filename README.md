@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/fc6861f4-d1f5-4efb-8827-00e6b91f0c3a" alt="AnsiblePower" width="900">
+  <img src="https://github.com/user-attachments/assets/fc6861f4-d1f5-4efb-8827-00e6b91f0c3a" alt="ansible-power" width="900">
 </p>
 
-<h1 align="center">⚡ AnsiblePower</h1>
+<h1 align="center">⚡ ansible-power</h1>
 
 <p align="center">
   <strong>A lightweight, self-hosted web UI for running Ansible playbooks.</strong><br>
@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/pooyanazad/AnsiblePower/actions"><img src="https://github.com/pooyanazad/AnsiblePower/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
-  <a href="https://github.com/pooyanazad/AnsiblePower/blob/main/LICENSE"><img src="https://img.shields.io/github/license/pooyanazad/AnsiblePower" alt="License"></a>
+  <a href="https://github.com/pooyanazad/ansible-power/actions"><img src="https://github.com/pooyanazad/ansible-power/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
+  <a href="https://github.com/pooyanazad/ansible-power/blob/main/LICENSE"><img src="https://img.shields.io/github/license/pooyanazad/ansible-power" alt="License"></a>
   <img src="https://img.shields.io/badge/python-3.9%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/flask-2.3-lightgrey" alt="Flask">
   <img src="https://img.shields.io/badge/docker-ready-2496ED?logo=docker&logoColor=white" alt="Docker">
@@ -19,9 +19,9 @@
 
 ---
 
-## Why AnsiblePower?
+## Why ansible-power?
 
-| | AnsiblePower | AWX / Tower | Semaphore |
+| | ansible-power | AWX / Tower | Semaphore |
 |---|---|---|---|
 | **Setup** | 1 minute | 30+ minutes | 10 minutes |
 | **Database** | SQLite (auto) | PostgreSQL | MySQL / BoltDB |
@@ -29,7 +29,7 @@
 | **Footprint** | ~20 MB | ~2 GB | ~100 MB |
 | **Cost** | Free & open source | Free / Paid | Free |
 
-If you need a simple, fast way to run playbooks from a browser — without setting up a full platform — AnsiblePower is for you.
+If you need a simple, fast way to run playbooks from a browser — without setting up a full platform — ansible-power is for you.
 
 ---
 
@@ -61,15 +61,19 @@ If you need a simple, fast way to run playbooks from a browser — without setti
 ### 🐳 Docker (recommended)
 
 ```bash
-git clone https://github.com/pooyanazad/AnsiblePower.git
-cd AnsiblePower
+git clone https://github.com/pooyanazad/ansible-power.git
+cd ansible-power
 cp .env.example .env
 docker compose up -d
-docker compose exec ansiblepower flask --app ansiblePower create-admin
+docker compose exec ansible-power flask --app ansiblePower create-admin
 ```
 
 Choose an administrator username and a password of at least 12 characters when prompted,
 then sign in at [http://localhost:5000](http://localhost:5000).
+
+If you already run the previous Docker setup, run `docker compose down` from
+the previous checkout before upgrading. Then run `docker compose up -d --build`
+with the same `data/`, `playbooks/`, and `logs/` directories.
 
 <details>
 <summary><strong>Volume mounts</strong></summary>
@@ -88,8 +92,8 @@ Data persists across `docker compose down && up`.
 ### 🐍 Bare metal
 
 ```bash
-git clone https://github.com/pooyanazad/AnsiblePower.git
-cd AnsiblePower
+git clone https://github.com/pooyanazad/ansible-power.git
+cd ansible-power
 pip install -r requirements.txt
 flask --app ansiblePower create-admin
 python ansiblePower.py
@@ -208,7 +212,7 @@ Run `make` (no target) for a full help summary.
 ## Project Structure
 
 ```
-AnsiblePower/
+ansible-power/
 ├── ansiblePower.py        # Main Flask application (routes, blueprints)
 ├── utils.py               # Shared helpers: config, history, logging
 ├── Makefile               # Developer convenience targets
@@ -270,7 +274,7 @@ When a limit is exceeded the server responds with HTTP `429` and a JSON error: `
 
 ## Configuration
 
-AnsiblePower works out of the box. You can customize it through the Settings page or environment variables:
+ansible-power works out of the box. You can customize it through the Settings page or environment variables:
 
 | Environment Variable | Default | Description |
 |---|---|---|
@@ -322,7 +326,7 @@ make test
 
 ## Contributing
 
-Contributions are welcome! Check out [CONTRIBUTING.md](CONTRIBUTING.md) and the [open issues](https://github.com/pooyanazad/AnsiblePower/issues).
+Contributions are welcome! Check out [CONTRIBUTING.md](CONTRIBUTING.md) and the [open issues](https://github.com/pooyanazad/ansible-power/issues).
 
 ---
 

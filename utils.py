@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AnsiblePower utility helpers — shared constants and I/O functions.
+"""ansible-power utility helpers — shared constants and I/O functions.
 
 Extracted from ``ansiblePower.py`` to keep the main module focused on
 Flask routes and application wiring.

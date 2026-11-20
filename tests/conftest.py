@@ -1,5 +1,5 @@
 """
-Shared pytest fixtures for AnsiblePower test suite.
+Shared pytest fixtures for ansible-power test suite.
 
 Provides reusable fixtures for the Flask test client, temporary directories,
 and pre-populated mock config / history so individual test modules don't
@@ -54,7 +54,7 @@ def tmp_data_dir():
     """
     Yield a temporary directory that is automatically removed after the test.
 
-    The directory contains the standard sub-structure expected by AnsiblePower:
+    The directory contains the standard sub-structure expected by ansible-power:
     - ``playbooks/``       – directory for Ansible playbook files
     - ``config.json``      – minimal configuration (playbooks_dir, hosts_file)
     - ``hosts``            – minimal Ansible inventory file
