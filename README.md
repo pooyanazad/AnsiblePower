@@ -73,7 +73,7 @@ a missing, invalid, or empty inventory blocks the run until you fix it in Settin
 
 | Light mode | Dark mode |
 | --- | --- |
-| ![Completed sample run in light mode](docs/images/run-light.png) | ![Completed sample run in dark mode](docs/images/run-dark.png) |
+| ![Playbooks and recent runs in light mode](docs/images/playbooks-light.png) | ![Playbooks and recent runs in dark mode](docs/images/playbooks-dark.png) |
 
 ## Operations and development
 
