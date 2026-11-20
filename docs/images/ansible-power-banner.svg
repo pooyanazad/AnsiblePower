@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400" role="img" aria-labelledby="title description">
+  <title id="title">An Ansible playbook run in ansible-power</title>
+  <desc id="description">A YAML playbook checks connectivity to the web group in an INI inventory. The two example hosts succeed and the Ansible process exits with code zero.</desc>
+  <defs>
+    <linearGradient id="background" x2="1" y2="1" gradientUnits="objectBoundingBox">
+      <stop stop-color="#122036"/>
+      <stop offset="1" stop-color="#0c1423"/>
+    </linearGradient>
+    <linearGradient id="result" x2="1" y2="1" gradientUnits="objectBoundingBox">
+      <stop stop-color="#111e30"/>
+      <stop offset="1" stop-color="#0d1726"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="8" markerHeight="10" viewBox="0 0 8 10" refX="7" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="m1 1 5 4-5 4" fill="none" stroke="#70aaff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <rect x=".5" y=".5" width="1199" height="399" rx="24" fill="url(#background)" stroke="#30435f"/>
+  <g font-family="system-ui, sans-serif">
+    <rect x="32" y="23" width="32" height="32" rx="9" fill="#244570"/>
+    <path d="m49 29-9 12h7l-1 8 10-13h-7z" fill="#b5d5ff"/>
+    <text x="76" y="45" fill="#eaf1fb" font-size="19" font-weight="650">ansible-power</text>
+    <path d="M32 67h1136" stroke="#2b3d56"/>
+    <g stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M416 159h29a19 19 0 0 1 19 19v32m-48 97h29a19 19 0 0 0 19-19v-30m0-48h35" stroke="#70aaff"/>
+      <path d="M581 210h41" stroke="#70aaff" marker-end="url(#arrow)"/>
+    </g>
+    <circle cx="464" cy="210" r="4" fill="#80b3ff"/>
+    <path d="M464 258v-48" stroke="#70aaff" stroke-width="1.6"/>
+    <rect x="498" y="188" width="84" height="44" rx="12" fill="#28589d" stroke="#619ce9"/>
+    <path d="m514 204 9 6-9 6z" fill="#e6f0ff"/>
+    <text x="530" y="216" fill="#f2f7ff" font-size="17" font-weight="650">Run</text>
+    <rect x="32.5" y="88.5" width="384" height="152" rx="15" fill="#111b2c" stroke="#354963"/>
+    <rect x="32.5" y="253.5" width="384" height="123" rx="15" fill="#111b2c" stroke="#354963"/>
+    <rect x="631.5" y="88.5" width="536" height="288" rx="15" fill="url(#result)" stroke="#354963"/>
+    <g font-size="13" font-weight="650" letter-spacing="1.4">
+      <text x="54" y="116" fill="#8abaff">PLAYBOOK</text>
+      <text x="54" y="281" fill="#c2b3ff">INVENTORY</text>
+      <text x="654" y="116" fill="#aabdd4">RUN OUTPUT</text>
+    </g>
+    <g font-family="ui-monospace, 'DejaVu Sans Mono', Consolas, monospace" fill="#d4dff0">
+      <g font-size="13" fill="#aabdd4" text-anchor="end">
+        <text x="394" y="116">check-web.yml</text>
+        <text x="394" y="281">hosts.ini</text>
+      </g>
+      <path d="M54 128h341m-341 165h341m259-165h491" stroke="#2b3d56"/>
+      <g font-size="15" xml:space="preserve">
+        <text x="54" y="152">- <tspan fill="#8abaff">hosts</tspan>: web</text>
+        <text x="72" y="176"><tspan fill="#8abaff">gather_facts</tspan>: <tspan fill="#f0ba89">false</tspan></text>
+        <text x="72" y="200"><tspan fill="#8abaff">tasks</tspan>:</text>
+        <text x="90" y="224">- <tspan fill="#8abaff">ansible.builtin.ping</tspan>:</text>
+        <text x="54" y="316" fill="#c2b3ff">[web]</text>
+        <text x="54" y="338">web-01</text>
+        <text x="54" y="360">web-02</text>
+        <text x="654" y="161">TASK [ansible.builtin.ping]</text>
+        <text x="654" y="187"><tspan fill="#75dfa9">ok:</tspan> [web-01]</text>
+        <text x="654" y="213"><tspan fill="#75dfa9">ok:</tspan> [web-02]</text>
+        <text x="654" y="257" fill="#aabdd4" font-weight="700">PLAY RECAP</text>
+        <text x="654" y="286">web-01 : <tspan fill="#75dfa9">ok=1</tspan>   changed=0   unreachable=0   failed=0</text>
+        <text x="654" y="313">web-02 : <tspan fill="#75dfa9">ok=1</tspan>   changed=0   unreachable=0   failed=0</text>
+        <text x="1143" y="354" text-anchor="end" fill="#aabdd4" font-size="13">Exit code 0</text>
+      </g>
+    </g>
+    <path d="M654 329h491" stroke="#2b3d56"/>
+    <rect x="1024" y="98" width="120" height="24" rx="12" fill="#163b35"/>
+    <path d="m1038 110 3 3 5-6" fill="none" stroke="#75dfa9" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="1052" y="114.5" fill="#9ce7bd" font-size="13" font-weight="650">Succeeded</text>
+  </g>
+</svg>

@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/ansible-power-banner.png" alt="Close-up of a rack-mounted server with green status lights" width="960">
+  <img src="docs/images/ansible-power-banner.svg" alt="Ansible playbook and inventory feeding a successful run with a recap for two hosts" width="960">
 </p>
 
 - Browse and run the playbooks in your existing Ansible project.
