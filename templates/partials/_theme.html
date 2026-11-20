@@ -1,0 +1,10 @@
+<script>
+  (() => {
+    let stored;
+    try { stored = localStorage.getItem('darkMode'); } catch { /* Use system preference. */ }
+    document.documentElement.classList.toggle(
+      'dark',
+      stored === 'true' || (stored == null && matchMedia('(prefers-color-scheme: dark)').matches)
+    );
+  })();
+</script>

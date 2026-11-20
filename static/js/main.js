@@ -101,15 +101,6 @@ window.showToast = function(message, type = 'info') {
 document.addEventListener("DOMContentLoaded", function(){
     const csrfMeta = document.querySelector('meta[name="csrf-token"]');
     const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
-    // Optional: Sidebar toggle functionality if you add a toggle button.
-    const toggleBtn = document.getElementById("toggle-sidebar-btn");
-    if(toggleBtn) {
-        toggleBtn.addEventListener("click", function(){
-            const sidebar = document.querySelector(".sidebar");
-            sidebar.style.display = (sidebar.style.display === "none" || sidebar.style.display === "") ? "block" : "none";
-        });
-    }
-
     // Run playbook
     document.querySelectorAll(".run-btn").forEach(btn => {
         btn.addEventListener("click", function(){
@@ -125,12 +116,11 @@ document.addEventListener("DOMContentLoaded", function(){
             }
 
             // Show spinner in output area
-            wrapperEl.style.display = "block";
-            outputEl.innerHTML =
-                '<span class="output-spinner-wrapper">' +
-                  '<span class="output-spinner"></span>' +
-                  'Running <strong>' + playbook + '</strong>&hellip; please wait' +
-                '</span>';
+            wrapperEl.hidden = false;
+            const spinner = document.createElement('span');
+            spinner.className = 'output-spinner';
+            spinner.setAttribute('aria-hidden', 'true');
+            outputEl.replaceChildren(spinner, document.createTextNode('Submitting ' + playbook + '…'));
 
             // Disable button and show spinner inside it
             const originalHTML = btn.innerHTML;
@@ -165,11 +155,21 @@ document.addEventListener("DOMContentLoaded", function(){
         });
     });
 
+    function showTimestamp(id, value, fallback) {
+        const element = document.getElementById(id);
+        const time = value ? new Date(value) : null;
+        element.textContent = time && !Number.isNaN(time.getTime())
+            ? new Intl.DateTimeFormat(undefined, {dateStyle: 'medium', timeStyle: 'medium'}).format(time)
+            : value || fallback;
+        element.title = value || '';
+    }
+
     const jobDetail = document.getElementById('job-detail');
     if (jobDetail) {
         let announced = false;
         const cancelForm = document.getElementById('job-cancel');
         const cancelButton = cancelForm.querySelector('button');
+        const repair = document.getElementById('job-repair');
         const poll = async () => {
             try {
                 const response = await fetch(jobDetail.dataset.statusUrl, {headers: {'Accept': 'application/json'}});
@@ -179,14 +179,17 @@ document.addEventListener("DOMContentLoaded", function(){
                 const badge = document.getElementById('job-state');
                 badge.textContent = view.label;
                 badge.className = 'badge badge-' + view.tone;
-                document.getElementById('job-started').textContent = job.started_at || 'Not started';
-                document.getElementById('job-finished').textContent = job.finished_at || '—';
-                document.getElementById('job-duration').textContent = job.duration == null ? '—' : job.duration + ' s';
+                showTimestamp('job-started', job.started_at, 'Not started');
+                showTimestamp('job-finished', job.finished_at, '—');
+                const duration = document.getElementById('job-duration');
+                duration.textContent = job.duration == null ? '—' : Number(Number(job.duration).toFixed(2)) + ' s';
+                duration.title = job.duration == null ? '' : job.duration + ' s';
                 document.getElementById('job-exit').textContent = job.exit_code == null ? 'Unknown' : job.exit_code;
                 const emptyOutput = view.active ? (job.state === 'running' ? 'Playbook is running…' : 'Waiting for the runner…') : 'No output recorded.';
                 document.getElementById('job-output').innerHTML = colorizeAnsibleOutput(job.output || emptyOutput);
                 document.getElementById('job-review').hidden = !job.needs_review;
                 cancelForm.hidden = !view.active;
+                if (repair) repair.hidden = job.state !== 'blocked';
                 cancelButton.disabled = !!job.cancel_requested;
                 cancelButton.textContent = job.cancel_requested ? 'Cancellation requested…' : 'Cancel run';
                 if (view.active) {
@@ -228,8 +231,13 @@ document.addEventListener("DOMContentLoaded", function(){
             const index = btn.getAttribute("data-index");
             const wrapperEl = document.getElementById("wrapper-" + index);
             const outputEl  = document.getElementById("output-"  + index);
-            wrapperEl.style.display = "block";
-            outputEl.textContent = "Loading...";
+            const expanded = btn.getAttribute('aria-expanded') === 'true';
+            wrapperEl.hidden = expanded;
+            btn.setAttribute('aria-expanded', String(!expanded));
+            btn.querySelector('span').textContent = expanded ? 'View YAML' : 'Hide YAML';
+            if (expanded) return;
+
+            outputEl.textContent = 'Loading…';
 
             fetch("/show_playbook", {
                 method: "POST",
@@ -258,118 +266,111 @@ document.addEventListener("DOMContentLoaded", function(){
 
             if (!text.trim()) return;
 
+            if (!navigator.clipboard) {
+                showToast('Select the output to copy it manually.', 'info');
+                return;
+            }
+
             navigator.clipboard.writeText(text).then(() => {
-                const prev = btn.textContent;
-                btn.textContent = "✓ Copied";
-                btn.classList.add("copied");
-                setTimeout(() => {
-                    btn.textContent = "📋";
-                    btn.classList.remove("copied");
-                }, 2000);
-            }).catch(() => {
-                showToast("Could not copy — please copy manually.", "error");
-            });
+                btn.textContent = 'Copied';
+                setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+            }).catch(() => showToast('Could not copy. Select the output to copy it manually.', 'error'));
         });
     });
 
-    // Hosts handling
-    const showHostsBtn = document.getElementById("show-hosts-btn");
-    const editHostsBtn = document.getElementById("edit-hosts-btn");
-    const hostsBox = document.getElementById("hosts-box");
-    const hostsContent = document.getElementById("hosts-content");
-    const saveHostsBtn = document.getElementById("save-hosts-btn");
-    const hostsError = document.getElementById("hosts-error");
-
-    if(showHostsBtn && editHostsBtn && hostsBox && hostsContent && saveHostsBtn && hostsError) {
-        showHostsBtn.addEventListener("click", function(){
-            fetch("/settings/get_hosts")
-            .then(r => r.json())
-            .then(data => {
-                if(data.content) {
-                    hostsError.textContent = "";
-                    hostsContent.value = data.content;
-                    hostsContent.setAttribute("readonly", "readonly");
-                    hostsBox.style.display = "block";
-                    saveHostsBtn.style.display = "none";
-                } else if(data.error) {
-                    hostsBox.style.display = "none";
-                    hostsError.textContent = data.error;
-                }
+    const settingsNav = document.getElementById('settings-sections');
+    if (settingsNav) {
+        const links = [...settingsNav.querySelectorAll('a')];
+        function showSettingsSection() {
+            const active = links.find(link => link.hash === window.location.hash) || links[0];
+            links.forEach(link => {
+                const selected = link === active;
+                if (selected) link.setAttribute('aria-current', 'location');
+                else link.removeAttribute('aria-current');
+                document.getElementById(link.hash.slice(1)).hidden = !selected;
             });
-        });
+        }
+        window.addEventListener('hashchange', showSettingsSection);
+        showSettingsSection();
+    }
 
-        editHostsBtn.addEventListener("click", function(){
-            fetch("/settings/get_hosts")
-            .then(r => r.json())
-            .then(data => {
-                if(data.content) {
-                    hostsError.textContent = "";
-                    hostsContent.value = data.content;
-                    hostsContent.removeAttribute("readonly");
-                    hostsBox.style.display = "block";
-                    saveHostsBtn.style.display = "inline-block";
-                } else if(data.error) {
-                    hostsBox.style.display = "none";
-                    hostsError.textContent = data.error;
-                }
-            });
-        });
+    // Inventory editor
+    const showHostsBtn = document.getElementById('show-hosts-btn');
+    const editHostsBtn = document.getElementById('edit-hosts-btn');
+    const hostsBox = document.getElementById('hosts-box');
+    const hostsContent = document.getElementById('hosts-content');
+    const saveHostsBtn = document.getElementById('save-hosts-btn');
+    const hostsError = document.getElementById('hosts-error');
 
-        saveHostsBtn.addEventListener("click", function(){
-            fetch("/settings/save_hosts", {
-                method:"POST",
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    "X-CSRFToken": csrfToken
-                },
-                body: "content=" + encodeURIComponent(hostsContent.value)
-            })
-            .then(r => r.json())
-            .then(data => {
-                if(data.status === "ok") {
-                    showToast(data.message || "Hosts saved successfully.", "success");
-                } else if(data.error){
-                    showToast(data.error, "error");
-                }
-            });
+    if (hostsBox) {
+        async function loadHosts(editing) {
+            showHostsBtn.disabled = editHostsBtn.disabled = true;
+            try {
+                const response = await fetch('/settings/get_hosts');
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Could not read the inventory.');
+                hostsError.textContent = '';
+                hostsContent.value = data.content;
+                hostsContent.readOnly = !editing;
+                hostsBox.hidden = false;
+                saveHostsBtn.hidden = !editing;
+                if (editing) hostsContent.focus();
+            } catch (error) {
+                hostsBox.hidden = true;
+                hostsError.textContent = error.message;
+            } finally {
+                showHostsBtn.disabled = editHostsBtn.disabled = false;
+            }
+        }
+
+        showHostsBtn.addEventListener('click', () => loadHosts(false));
+        editHostsBtn.addEventListener('click', () => loadHosts(true));
+        saveHostsBtn.addEventListener('click', async () => {
+            saveHostsBtn.disabled = true;
+            try {
+                const response = await fetch('/settings/save_hosts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: new URLSearchParams({content: hostsContent.value})
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Could not save the inventory.');
+                showToast(data.message || 'Inventory saved.', 'success');
+            } catch (error) {
+                showToast(error.message, 'error');
+            } finally {
+                saveHostsBtn.disabled = false;
+            }
         });
     }
 
-    // System status — Task 42: colored progress bars
-    const statusBtn = document.getElementById("status-btn");
-    const statusBox = document.getElementById("status-box");
-    if(statusBtn && statusBox) {
-        statusBtn.addEventListener("click", function(){
-            fetch("/settings/system_status")
-            .then(r => r.json())
-            .then(data => {
-                if (data.error) {
-                    statusBox.innerHTML = '<p class="text-danger">' + data.error + '</p>';
-                    statusBox.style.display = "block";
-                    return;
-                }
-                function gaugeColor(pct) {
-                    if (pct < 60)  return 'success';
-                    if (pct < 80)  return 'warning';
-                    return 'danger';
-                }
-                var cpuPct = parseFloat(data.cpu).toFixed(1);
-                var memPct = parseFloat(data.memory).toFixed(1);
-                statusBox.innerHTML =
-                    '<div class="mb-2">'
-                    + '<label class="d-flex justify-content-between"><span>CPU</span><strong>' + cpuPct + '%</strong></label>'
-                    + '<div class="progress" style="height:18px;">'
-                    + '<div class="progress-bar bg-' + gaugeColor(cpuPct) + '" role="progressbar" '
-                    + 'style="width:' + cpuPct + '%;" aria-valuenow="' + cpuPct + '" aria-valuemin="0" aria-valuemax="100">'
-                    + '</div></div></div>'
-                    + '<div>'
-                    + '<label class="d-flex justify-content-between"><span>Memory</span><strong>' + memPct + '%</strong></label>'
-                    + '<div class="progress" style="height:18px;">'
-                    + '<div class="progress-bar bg-' + gaugeColor(memPct) + '" role="progressbar" '
-                    + 'style="width:' + memPct + '%;" aria-valuenow="' + memPct + '" aria-valuemin="0" aria-valuemax="100">'
-                    + '</div></div></div>';
-                statusBox.style.display = "block";
-            });
+    const statusBtn = document.getElementById('status-btn');
+    const statusBox = document.getElementById('status-box');
+    if (statusBtn) {
+        statusBtn.addEventListener('click', async () => {
+            statusBtn.disabled = true;
+            statusBox.textContent = 'Reading system metrics…';
+            try {
+                const response = await fetch('/settings/system_status');
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Could not read system metrics.');
+
+                statusBox.innerHTML = [['CPU', data.cpu], ['Memory', data.memory]].map(([label, value]) => {
+                    const percent = Math.max(0, Math.min(100, Number(value) || 0)).toFixed(1);
+                    const tone = percent < 60 ? 'success' : percent < 80 ? 'warning' : 'danger';
+                    return '<div><div class="metric-label"><span>' + label + '</span><strong>' + percent + '%</strong></div>'
+                        + '<div class="progress"><div class="progress-bar bg-' + tone + '" role="progressbar" '
+                        + 'style="width:' + percent + '%" aria-label="' + label + '" aria-valuenow="' + percent + '" '
+                        + 'aria-valuemin="0" aria-valuemax="100"></div></div></div>';
+                }).join('');
+            } catch (error) {
+                statusBox.textContent = error.message;
+            } finally {
+                statusBtn.disabled = false;
+            }
         });
     }
 
@@ -397,25 +398,19 @@ document.addEventListener("DOMContentLoaded", function(){
         });
     }
 
-    // Dark mode — stored in localStorage, no server round-trip (task 37)
-    function syncDarkModeButton() {
-        const isDark = document.documentElement.classList.contains('dark');
-        const icon  = document.getElementById('dark-mode-icon');
-        const label = document.getElementById('dark-mode-label');
-        if (icon)  { icon.className  = isDark ? 'fas fa-sun'   : 'fas fa-moon'; }
-        if (label) { label.textContent = isDark ? 'Light Mode' : 'Dark Mode'; }
-    }
-
-    // Sync button state on first load (dark class already applied by inline script)
-    syncDarkModeButton();
-
-    const toggleDarkModeBtn = document.getElementById("toggle-dark-mode");
+    const toggleDarkModeBtn = document.getElementById('toggle-dark-mode');
     if (toggleDarkModeBtn) {
-        toggleDarkModeBtn.addEventListener("click", function () {
-            const isDark = document.documentElement.classList.toggle('dark');
-            localStorage.setItem('darkMode', isDark ? 'true' : 'false');
-            syncDarkModeButton();
+        const label = document.getElementById('dark-mode-label');
+        const root = document.documentElement;
+        function syncThemeLabel() {
+            label.textContent = root.classList.contains('dark') ? 'Light mode' : 'Dark mode';
+        }
+        toggleDarkModeBtn.addEventListener('click', () => {
+            const isDark = root.classList.toggle('dark');
+            try { localStorage.setItem('darkMode', String(isDark)); } catch { /* Theme still applies. */ }
+            syncThemeLabel();
         });
+        syncThemeLabel();
     }
 
     // Playbooks directory form — used on index page (prompt_for_dir) AND settings page
@@ -460,13 +455,13 @@ document.addEventListener("DOMContentLoaded", function(){
             const items = document.querySelectorAll("#playbook-list .playbook-item");
             let anyVisible = false;
             items.forEach(function(item) {
-                const name = item.querySelector("h5").textContent.toLowerCase();
+                const name = item.querySelector('.playbook-name').textContent.toLowerCase();
                 const show = name.includes(query);
-                item.style.display = show ? "" : "none";
+                item.hidden = !show;
                 if(show) anyVisible = true;
             });
             const noMatch = document.getElementById("no-playbook-match");
-            if(noMatch) noMatch.style.display = anyVisible ? "none" : "";
+            if (noMatch) noMatch.hidden = anyVisible;
         });
     }
 
@@ -506,13 +501,13 @@ document.addEventListener("DOMContentLoaded", function(){
         var btn = wrapper.querySelector('.history-toggle-btn');
         if (!btn) return;
 
-        // Only show toggle if content overflows the 80px cap
-        if (pre.scrollHeight > 80) {
-            btn.style.display = 'inline-block';
+        // The output wrapper is horizontally scrollable on narrow screens.
+        if (pre.scrollHeight > pre.clientHeight) {
+            btn.hidden = false;
             btn.addEventListener('click', function() {
                 var expanded = pre.classList.toggle('expanded');
                 btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-                btn.textContent = expanded ? 'Show less ▲' : 'Show more ▼';
+                btn.textContent = expanded ? 'Show less' : 'Show more';
             });
         }
     });
@@ -524,11 +519,11 @@ document.addEventListener("DOMContentLoaded", function(){
 
     function renderHistoryPage() {
         var rows = Array.prototype.slice.call(document.querySelectorAll('#history-tbody .history-row'));
-        if (!rows.length) return;
+        if (!historySearch) return;
         var query = historySearch ? historySearch.value.toLowerCase().trim() : '';
         var matched = rows.filter(function(row) {
             var playbook = (row.cells[1] ? row.cells[1].textContent : '').toLowerCase();
-            var output   = (row.cells[3] ? row.cells[3].textContent : '').toLowerCase();
+            var output = row.querySelector('.history-output').textContent.toLowerCase();
             return !query || playbook.includes(query) || output.includes(query);
         });
         var totalPages = Math.max(1, Math.ceil(matched.length / HISTORY_PAGE_SIZE));
@@ -536,15 +531,18 @@ document.addEventListener("DOMContentLoaded", function(){
         var start = (historyPage - 1) * HISTORY_PAGE_SIZE;
         var visible = matched.slice(start, start + HISTORY_PAGE_SIZE);
         rows.forEach(function(row) {
-            row.style.display = visible.indexOf(row) !== -1 ? '' : 'none';
+            row.hidden = !visible.includes(row);
         });
 
         var noMatch = document.getElementById('history-no-match');
-        if (noMatch) noMatch.style.display = matched.length === 0 ? '' : 'none';
+        if (noMatch) {
+            noMatch.hidden = matched.length > 0;
+            noMatch.textContent = query ? 'No runs match your search.' : 'No history yet.';
+        }
 
         var pager = document.getElementById('history-pagination');
         if (pager) {
-            pager.style.display = matched.length > HISTORY_PAGE_SIZE ? '' : 'none';
+            pager.hidden = matched.length <= HISTORY_PAGE_SIZE;
             document.getElementById('history-page-info').textContent = 'Page ' + historyPage + ' of ' + totalPages;
             document.getElementById('history-prev').disabled = historyPage <= 1;
             document.getElementById('history-next').disabled = historyPage >= totalPages;
@@ -585,6 +583,8 @@ document.addEventListener("DOMContentLoaded", function(){
             document.querySelectorAll('#history-table th.history-sortable').forEach(function(h) {
                 var ind = h.querySelector('.sort-indicator');
                 if (ind) ind.textContent = (h === th) ? (historySort.dir === 'asc' ? '▲' : '▼') : '';
+                if (h === th) h.setAttribute('aria-sort', historySort.dir === 'asc' ? 'ascending' : 'descending');
+                else h.removeAttribute('aria-sort');
             });
             historyPage = 1;
             renderHistoryPage();
@@ -649,6 +649,25 @@ document.addEventListener("DOMContentLoaded", function(){
         });
     });
 
+    const importForm = document.getElementById('import-history-form');
+    if (importForm) {
+        importForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            const button = importForm.querySelector('button[type="submit"]');
+            button.disabled = true;
+            try {
+                const response = await fetch(importForm.action, {method: 'POST', body: new FormData(importForm)});
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Could not import history.');
+                showToast(data.message, 'success');
+                setTimeout(() => window.location.reload(), 1000);
+            } catch (error) {
+                showToast(error.message, 'error');
+                button.disabled = false;
+            }
+        });
+    }
+
     renderHistoryPage();
 
     // Task 56: relative timestamps ("5 minutes ago") with the original as tooltip
@@ -669,12 +688,12 @@ document.addEventListener("DOMContentLoaded", function(){
     }
 
     function refreshTimestamps() {
-        document.querySelectorAll('#history-tbody .history-time').forEach(function(td) {
-            var raw = td.getAttribute('data-time');
-            td.title = raw;
-            td.textContent = timeAgo(raw);
+        document.querySelectorAll('.history-time, .recent-time').forEach(function(element) {
+            const raw = element.getAttribute('datetime') || element.getAttribute('data-time');
+            element.title = raw;
+            element.textContent = timeAgo(raw);
         });
     }
     refreshTimestamps();
-    if (document.getElementById('history-tbody')) setInterval(refreshTimestamps, 60000);
+    if (document.querySelector('.history-time, .recent-time')) setInterval(refreshTimestamps, 60000);
 });

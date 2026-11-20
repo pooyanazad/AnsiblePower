@@ -1,19 +1,15 @@
-<div class="sidebar-sticky pt-3">
-    <ul class="nav flex-column">
-      <li class="nav-item">
-        <a class="nav-link {% if request.path == '/' %}sidebar-active{% endif %}" href="{{ url_for('main.homepage') }}">
-          <i class="fas fa-home mr-2"></i> Homepage
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link {% if '/history' in request.path %}sidebar-active{% endif %}" href="{{ url_for('history.history') }}">
-          <i class="fas fa-history mr-2"></i> History
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link {% if '/settings' in request.path %}sidebar-active{% endif %}" href="{{ url_for('settings.settings') }}">
-          <i class="fas fa-cog mr-2"></i> Settings
-        </a>
-      </li>
-    </ul>
-  </div>
+<nav class="sidebar" aria-label="Main navigation">
+    {% set section = request.blueprint %}
+    <a href="{{ url_for('main.homepage') }}"{% if section == 'main' %} aria-current="page"{% endif %}>
+        {{ icon('file') }} Playbooks
+    </a>
+    <a href="{{ url_for('history.history') }}"{% if section == 'history' %} aria-current="page"{% endif %}>
+        {{ icon('clock') }} History
+    </a>
+    <a href="{{ url_for('settings.settings') }}"{% if section == 'settings' %} aria-current="page"{% endif %}>
+        {{ icon('settings') }} Settings
+    </a>
+    <a class="source-link" href="https://github.com/pooyanazad/ansible-power" target="_blank" rel="noopener noreferrer">
+        {{ icon('external') }} GitHub
+    </a>
+</nav>

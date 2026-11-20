@@ -1,20 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Page Not Found - ansible-power{% endblock %}
+{% block title %}Page not found — ansible-power{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-center align-items-center" style="min-height: 60vh;">
-  <div class="card shadow-sm text-center" style="max-width: 640px;">
-    <div class="card-body p-5">
-      <h1 class="display-4 mb-3">404</h1>
-      <h2 class="h4 mb-3">Page not found</h2>
-      <p class="text-muted mb-4">
-        The page you are looking for does not exist or may have been moved.
-      </p>
-      <a href="{{ url_for('main.homepage') }}" class="btn btn-primary">
-        Return to dashboard
-      </a>
-    </div>
-  </div>
-</div>
+<section class="panel empty-state error-page">
+    <p class="error-code">404</p>
+    <h1>Page not found</h1>
+    <p>The page may have moved or been deleted.</p>
+    <a class="btn btn-primary" href="{{ url_for('main.homepage') }}">Back to playbooks</a>
+</section>
 {% endblock %}

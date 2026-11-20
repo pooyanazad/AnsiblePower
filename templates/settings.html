@@ -1,163 +1,84 @@
 {% extends 'base.html' %}
+{% from 'partials/_icons.html' import icon %}
 {% block title %}Settings — ansible-power{% endblock %}
 
 {% block content %}
-<div class="mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h2 mb-1">Settings</h1>
-            <p class="text-muted mb-0">Configure inventory hosts, master node status, file paths, and application data.</p>
-        </div>
-    </div>
+<header class="page-heading">
+    <h1>Settings</h1>
+    <p>Manage inventory, paths, system metrics, and saved run history.</p>
+</header>
 
-    <!-- Bootstrap Nav Tabs for Settings -->
-    <ul class="nav nav-tabs settings-tabs" id="settingsTabs" role="tablist">
-        <li class="nav-item">
-            <a class="nav-link active" id="hosts-tab" data-toggle="tab" href="#tab-hosts" role="tab" aria-controls="tab-hosts" aria-selected="true">
-                <i class="fas fa-server mr-2"></i>Hosts
-            </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" id="system-tab" data-toggle="tab" href="#tab-system" role="tab" aria-controls="tab-system" aria-selected="false">
-                <i class="fas fa-microchip mr-2"></i>System
-            </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" id="paths-tab" data-toggle="tab" href="#tab-paths" role="tab" aria-controls="tab-paths" aria-selected="false">
-                <i class="fas fa-folder-open mr-2"></i>Paths
-            </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" id="data-tab" data-toggle="tab" href="#tab-data" role="tab" aria-controls="tab-data" aria-selected="false">
-                <i class="fas fa-database mr-2"></i>Data Management
-            </a>
-        </li>
-    </ul>
+<div class="settings-layout">
+    <nav id="settings-sections" class="section-nav" aria-label="Settings sections">
+        <a href="#tab-hosts">Inventory</a>
+        <a href="#tab-system">System</a>
+        <a href="#tab-paths">Paths</a>
+        <a href="#tab-data">Data management</a>
+    </nav>
 
-    <!-- Tab Contents -->
-    <div class="tab-content pt-4" id="settingsTabContent">
-        <!-- 1. Hosts Tab -->
-        <div class="tab-pane fade show active" id="tab-hosts" role="tabpanel" aria-labelledby="hosts-tab">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="h5 mb-0"><i class="fas fa-server mr-2 text-primary"></i>Ansible Hosts Inventory</h3>
+    <div id="settings-panels">
+        <section id="tab-hosts" class="panel" aria-labelledby="hosts-heading">
+            <header class="panel-heading"><h2 id="hosts-heading">{{ icon('servers') }} Ansible inventory</h2></header>
+            <div class="panel-body stack">
+                <p class="muted">View or edit the selected hosts file. Inventories are stored in <code>data/inventories/</code>.</p>
+                <div class="actions">
+                    <button type="button" id="show-hosts-btn" class="btn" aria-controls="hosts-box">View hosts</button>
+                    <button type="button" id="edit-hosts-btn" class="btn btn-primary" aria-controls="hosts-box">Edit hosts</button>
                 </div>
-                <div class="card-body">
-                    <p class="text-muted">Inspect or update the current Ansible inventory hosts file content. Store inventories in data/inventories/.</p>
-                    <div class="btn-group mb-3" role="group" aria-label="Hosts actions">
-                        <button id="show-hosts-btn" class="btn btn-primary">
-                            <i class="fas fa-eye mr-1"></i> Show Hosts
-                        </button>
-                        <button id="edit-hosts-btn" class="btn btn-secondary">
-                            <i class="fas fa-edit mr-1"></i> Edit Hosts
-                        </button>
+                <div id="hosts-box" class="stack" hidden>
+                    <div class="field">
+                        <label for="hosts-content">Inventory content</label>
+                        <textarea id="hosts-content" class="code-field" rows="10" spellcheck="false"></textarea>
                     </div>
-                    <div id="hosts-box" class="mt-2" style="display:none;">
-                        <label for="hosts-content" class="font-weight-bold">Inventory Content:</label>
-                        <textarea id="hosts-content" class="form-control font-monospace" rows="10" placeholder="[webservers]&#10;192.168.1.10"></textarea>
-                        <button id="save-hosts-btn" class="btn btn-success mt-3">
-                            <i class="fas fa-save mr-1"></i> Save Changes
-                        </button>
+                    <div><button type="button" id="save-hosts-btn" class="btn btn-primary">Save changes</button></div>
+                </div>
+                <p id="hosts-error" class="text-danger" role="alert"></p>
+            </div>
+        </section>
+
+        <section id="tab-system" class="panel" aria-labelledby="system-heading">
+            <header class="panel-heading"><h2 id="system-heading">Control node status</h2></header>
+            <div class="panel-body stack">
+                <p class="muted">Check CPU and memory usage on the host running ansible-power.</p>
+                <div><button type="button" id="status-btn" class="btn btn-primary">Get status</button></div>
+                <div id="status-box" class="system-metrics stack" aria-live="polite"></div>
+            </div>
+        </section>
+
+        <section id="tab-paths" class="panel" aria-labelledby="paths-heading">
+            <header class="panel-heading"><h2 id="paths-heading">File paths</h2></header>
+            <div class="panel-body stack">
+                <form id="playbooks-dir-form" class="stack">
+                    <div class="field">
+                        <label for="playbooks_dir">Playbooks directory</label>
+                        <input id="playbooks_dir" name="playbooks_dir" value="{{ playbooks_dir }}" aria-describedby="playbooks-dir-hint" required>
+                        <small id="playbooks-dir-hint">Enter the absolute path to the directory containing your YAML playbooks.</small>
                     </div>
-                    <div id="hosts-error" class="mt-2 text-danger"></div>
-                </div>
+                    <div><button type="submit" class="btn btn-primary">Save playbooks path</button></div>
+                </form>
+                <form id="hosts-file-form" class="stack divided">
+                    <div class="field">
+                        <label for="hosts_file">Inventory file</label>
+                        <input id="hosts_file" name="hosts_file" value="{{ hosts_file }}" aria-describedby="hosts-file-hint" required>
+                        <small id="hosts-file-hint">Choose an INI or YAML file under <code>data/inventories/</code>.</small>
+                    </div>
+                    <div><button type="submit" class="btn btn-primary">Save inventory path</button></div>
+                </form>
             </div>
-        </div>
+        </section>
 
-        <!-- 2. System Tab -->
-        <div class="tab-pane fade" id="tab-system" role="tabpanel" aria-labelledby="system-tab">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="h5 mb-0"><i class="fas fa-microchip mr-2 text-info"></i>Master Node Status</h3>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted">Live system metrics from the host running the ansible-power master node.</p>
-                    <button id="status-btn" class="btn btn-info">
-                        <i class="fas fa-sync-alt mr-1"></i> Get Status
-                    </button>
-                    <div id="status-box" class="mt-4"></div>
+        <section id="tab-data" class="panel" aria-labelledby="data-heading">
+            <header class="panel-heading"><h2 id="data-heading">History data</h2></header>
+            <div class="panel-body stack">
+                <p class="muted">Import or export records from the History page.</p>
+                <div><a class="btn" href="{{ url_for('history.history') }}#history-transfer">Open import and export {{ icon('arrow') }}</a></div>
+                <div class="divided stack">
+                    <h3>Clear execution history</h3>
+                    <p class="muted">Permanently delete all saved run history records.</p>
+                    <div><button type="button" id="clear-history-btn" class="btn btn-danger">Clear history</button></div>
                 </div>
             </div>
-        </div>
-
-        <!-- 3. Paths Tab -->
-        <div class="tab-pane fade" id="tab-paths" role="tabpanel" aria-labelledby="paths-tab">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="h5 mb-0"><i class="fas fa-book mr-2 text-primary"></i>Playbooks Directory</h3>
-                </div>
-                <div class="card-body">
-                    <form id="playbooks-dir-form">
-                        <div class="form-group">
-                            <label for="playbooks_dir" class="font-weight-bold">Path to Ansible playbooks:</label>
-                            <input type="text" class="form-control" id="playbooks_dir" name="playbooks_dir"
-                                   value="{{ playbooks_dir }}" required>
-                            <small class="form-text text-muted">
-                                Specify the full absolute path to the directory containing your Ansible playbook files (.yml/.yaml).
-                            </small>
-                        </div>
-                        <button type="submit" class="btn btn-primary mt-2">
-                            <i class="fas fa-save mr-1"></i> Save Playbooks Path
-                        </button>
-                    </form>
-                    <div id="playbooks-dir-message" class="mt-2" style="display: none;"></div>
-                </div>
-            </div>
-
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h3 class="h5 mb-0"><i class="fas fa-file-alt mr-2 text-primary"></i>Hosts File Path</h3>
-                </div>
-                <div class="card-body">
-                    <form id="hosts-file-form">
-                        <div class="form-group">
-                            <label for="hosts_file" class="font-weight-bold">Path to Ansible hosts file:</label>
-                            <input type="text" class="form-control" id="hosts_file" name="hosts_file"
-                                   value="{{ hosts_file }}" required>
-                            <small class="form-text text-muted">
-                                Specify the path to your inventory file inside the designated data storage directory.
-                            </small>
-                        </div>
-                        <button type="submit" class="btn btn-primary mt-2">
-                            <i class="fas fa-save mr-1"></i> Save Hosts Path
-                        </button>
-                    </form>
-                    <div id="hosts-file-message" class="mt-2" style="display: none;"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 4. Data Management Tab -->
-        <div class="tab-pane fade" id="tab-data" role="tabpanel" aria-labelledby="data-tab">
-            <div class="card border-danger">
-                <div class="card-header bg-danger text-white">
-                    <h3 class="h5 mb-0"><i class="fas fa-trash-alt mr-2"></i>Execution History</h3>
-                </div>
-                <div class="card-body">
-                    <h4 class="h6 font-weight-bold">Clear Playbook Execution Records</h4>
-                    <p class="text-muted">
-                        Permanently purge all recorded history entries from the database. This action is irreversible.
-                    </p>
-                    <button id="clear-history-btn" class="btn btn-danger">
-                        <i class="fas fa-trash-alt mr-1"></i> Clear History
-                    </button>
-                </div>
-            </div>
-
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h3 class="h5 mb-0"><i class="fas fa-exchange-alt mr-2 text-secondary"></i>History Backup & Restore</h3>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted mb-2">
-                        Need to export your execution history or import records from a previous run?
-                    </p>
-                    <a href="/history/" class="btn btn-outline-primary">
-                        <i class="fas fa-history mr-1"></i> Go to History page for Export / Import
-                    </a>
-                </div>
-            </div>
-        </div>
+        </section>
     </div>
 </div>
 {% endblock %}

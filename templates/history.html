@@ -1,113 +1,121 @@
 {% extends 'base.html' %}
 {% from '_outcome.html' import badge %}
+{% from 'partials/_icons.html' import icon %}
 {% block title %}History — ansible-power{% endblock %}
 
 {% block content %}
-<div class="mt-4">
-    <h1>Execution History</h1>
-    {% if history|length == 0 %}
-        <!-- task 45: empty state with icon + message -->
-        <div class="ap-empty-state">
-            <div class="ap-empty-state-icon">
-                <i class="fas fa-history"></i>
-            </div>
-            <h4>No history yet</h4>
-            <p>Run a playbook from the <a href="{{ url_for('main.homepage') }}">Home page</a> to see execution history here.</p>
-        </div>
-    {% else %}
-    <!-- task 44: search box for history — JS hides non-matching rows -->
-    <div class="mb-3">
-        <input type="text" id="history-search" class="form-control"
-               placeholder="🔍 Filter by playbook name or output…" autocomplete="off">
-    </div>
-    <div class="mb-3">
-        <label for="history-execution-mode">Re-run target</label>
-        <select id="history-execution-mode" class="form-control">
-            <option value="inventory">Inventory — configured hosts</option>
-            <option value="local">Local — this control node</option>
-        </select>
-    </div>
-    <table class="table table-striped" id="history-table">
-        <thead>
-            <tr>
-                <th class="history-sortable" data-sort-col="0" data-sort-type="time" style="cursor:pointer;user-select:none;">Time <span class="sort-indicator"></span></th>
-                <th class="history-sortable" data-sort-col="1" style="cursor:pointer;user-select:none;">Playbook <span class="sort-indicator"></span></th>
-                <th class="history-sortable" data-sort-col="2" style="cursor:pointer;user-select:none;">Action <span class="sort-indicator"></span></th>
-                <th>Outcome</th>
-                <th>Output</th>
-                <th>Re-run</th>
-                <th>Delete</th>
-            </tr>
-        </thead>
-        <tbody id="history-tbody">
-            {% for record in history|reverse %}
-            {% set state = record.state | default(none) %}
-            {% set row_status = 'success' if state == 'succeeded' else (state if state in ['failed', 'launch_error', 'blocked', 'timed_out', 'canceled', 'interrupted', 'uncertain', 'queued', 'running'] else 'unknown') %}
-            <tr class="history-row history-row--{{ row_status }}" data-record-id="{{ record.id }}">
-                <td class="history-time" data-time="{{ record.time }}" title="{{ record.time }}">{{ record.time }}</td>
-                <td>{{ record.playbook }}</td>
-                <td>{{ record.action }}</td>
-                <td>
-                    {{ badge(state) }}
-                    {% if record.job_id %}<a href="{{ url_for('main.job_page', job_id=record.job_id) }}">View run</a>{% endif %}
-                    <small class="d-block">Exit: {{ record.exit_code if record.exit_code is defined and record.exit_code is not none else 'Unknown' }}</small>
-                    <small class="d-block">Started: {{ record.started_at or 'Unknown' }}</small>
-                    <small class="d-block">Ended: {{ record.finished_at or 'Unknown' }}</small>
-                    <small class="d-block">Duration: {{ record.duration if record.duration is defined and record.duration is not none else 'Unknown' }}{% if record.duration is defined and record.duration is not none %} s{% endif %}</small>
-                </td>
-                <td>
-                    <div class="history-output-wrapper">
-                        <pre class="history-output" style="white-space: pre-wrap;">{{ record.output }}</pre>
-                        <button class="btn btn-sm btn-link history-toggle-btn" style="display:none;" aria-expanded="false">
-                            Show more ▼
-                        </button>
-                    </div>
-                </td>
-                <td>
-                    <!-- task 59: re-run the same playbook straight from history -->
-                    <button type="button" class="btn btn-sm btn-outline-success history-rerun-btn" data-playbook="{{ record.playbook }}">▶ Re-run</button>
-                </td>
-                <td>
-                    <!-- task 60: delete single history entry -->
-                    <button type="button"
-                            class="btn btn-sm btn-outline-danger history-delete-btn"
-                            data-record-id="{{ record.id }}"
-                            title="Delete this entry">🗑</button>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    <!-- task 57: client-side pagination controls -->
-    <div id="history-pagination" class="mb-3 text-center" style="display:none;">
-        <button type="button" id="history-prev" class="btn btn-sm btn-outline-secondary">Previous</button>
-        <span id="history-page-info" class="mx-3">Page 1 of 1</span>
-        <button type="button" id="history-next" class="btn btn-sm btn-outline-secondary">Next</button>
-    </div>
-    <!-- task 44: shown when no rows match the search query -->
-    <div id="history-no-match" class="ap-empty-state" style="display:none;">
-        <div class="ap-empty-state-icon">
-            <i class="fas fa-search"></i>
-        </div>
-        <h4>No results found</h4>
-        <p>No history entries match your search. Try a different term.</p>
-    </div>
-    {% endif %}
+<header class="page-heading">
+    <h1>Execution history</h1>
+    <p>Review outcomes, inspect output, and re-run playbooks.</p>
+</header>
 
-    <div class="mt-4">
-        <h3>Export/Import History</h3>
-        <div class="mb-2">
-            <a class="btn btn-outline-primary" href="{{ url_for('history.export_history', format='json') }}">Export as JSON</a>
-        <a class="btn btn-outline-secondary" href="{{ url_for('history.export_history', format='csv') }}">Export as CSV</a>
-        </div>
-        <form id="import-history-form" action="{{ url_for('history.import_history') }}" method="POST" enctype="multipart/form-data">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="form-group">
-                <label for="import-file">Import History File (.json or .csv)</label>
-                <input type="file" name="file" id="import-file" class="form-control-file" accept=".json,.csv" required>
+<div class="stack page-stack">
+    <section class="panel" aria-labelledby="history-heading">
+        <header class="panel-heading">
+            <h2 id="history-heading">Run records</h2>
+            {% if history %}<span class="count">{{ history|length }}</span>{% endif %}
+        </header>
+        {% if history %}
+        <div class="filters">
+            <div class="field">
+                <label for="history-search">Find a run</label>
+                <div class="search-field">
+                    {{ icon('search') }}
+                    <input type="search" id="history-search" placeholder="Search by playbook or output" autocomplete="off">
+                </div>
             </div>
-            <button type="submit" class="btn btn-primary">Import History</button>
-        </form>
-    </div>
+            <div class="field">
+                <label for="history-execution-mode">Re-run target</label>
+                <select id="history-execution-mode">
+                    <option value="inventory">Configured inventory</option>
+                    <option value="local">Local — this control node</option>
+                </select>
+            </div>
+        </div>
+        <div class="table-scroll" tabindex="0" role="region" aria-label="Execution history table">
+            <table id="history-table">
+                <thead>
+                    <tr>
+                        <th scope="col" class="history-sortable" data-sort-col="0" data-sort-type="time"><button type="button">Time <span class="sort-indicator" aria-hidden="true"></span></button></th>
+                        <th scope="col" class="history-sortable" data-sort-col="1"><button type="button">Playbook <span class="sort-indicator" aria-hidden="true"></span></button></th>
+                        <th scope="col" class="history-sortable" data-sort-col="2"><button type="button">Action <span class="sort-indicator" aria-hidden="true"></span></button></th>
+                        <th scope="col">Outcome</th>
+                        <th scope="col">Output</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="history-tbody">
+                {% for record in history|reverse %}
+                    {% set state = record.state | default(none) %}
+                    {% set row_status = 'success' if state == 'succeeded' else (state if state in ['failed', 'launch_error', 'blocked', 'timed_out', 'canceled', 'interrupted', 'uncertain', 'queued', 'running'] else 'unknown') %}
+                    <tr class="history-row history-row--{{ row_status }}" data-record-id="{{ record.id }}">
+                        <td class="history-time" data-time="{{ record.time }}" title="{{ record.time }}">{{ record.time }}</td>
+                        <td class="record-name">{{ record.playbook }}</td>
+                        <td>{{ record.action }}</td>
+                        <td>
+                            {{ badge(state) }}
+                            {% if record.job_id %}<a class="history-run-link" href="{{ url_for('main.job_page', job_id=record.job_id) }}">View run</a>{% endif %}
+                            <details class="record-metadata">
+                                <summary>Run details</summary>
+                                <small>Exit code {{ record.exit_code if record.exit_code is defined and record.exit_code is not none else 'Unknown' }}</small>
+                                <small>Started {{ record.started_at or 'Unknown' }}</small>
+                                <small>Ended {{ record.finished_at or 'Unknown' }}</small>
+                                <small>Duration {{ record.duration if record.duration is defined and record.duration is not none else 'Unknown' }}{% if record.duration is defined and record.duration is not none %} s{% endif %}</small>
+                            </details>
+                        </td>
+                        <td>
+                            <div class="history-output-wrapper">
+                                <pre class="history-output">{{ record.output }}</pre>
+                                <button type="button" class="btn btn-quiet history-toggle-btn" hidden aria-expanded="false">Show more</button>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="actions">
+                                <button type="button" class="btn history-rerun-btn" data-playbook="{{ record.playbook }}">Re-run</button>
+                                <button type="button" class="btn btn-danger history-delete-btn" data-record-id="{{ record.id }}">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div id="history-pagination" class="pagination" hidden>
+            <button type="button" id="history-prev" class="btn">Previous</button>
+            <span id="history-page-info" aria-live="polite">Page 1 of 1</span>
+            <button type="button" id="history-next" class="btn">Next</button>
+        </div>
+        <p id="history-no-match" class="empty-state" role="status" hidden></p>
+        {% else %}
+        <div class="empty-state">
+            <span class="feature-icon">{{ icon('clock') }}</span>
+            <h3>No history yet</h3>
+            <p>Run a playbook to start recording results here.</p>
+            <a href="{{ url_for('main.homepage') }}">Open playbooks {{ icon('arrow') }}</a>
+        </div>
+        {% endif %}
+    </section>
+
+    <section id="history-transfer" class="panel" aria-labelledby="transfer-heading">
+        <header class="panel-heading"><h2 id="transfer-heading">Import and export</h2></header>
+        <div class="panel-body backup-grid">
+            <div class="stack">
+                <h3>Export records</h3>
+                <div class="actions">
+                    <a class="btn" href="{{ url_for('history.export_history', format='json') }}">Export JSON</a>
+                    <a class="btn" href="{{ url_for('history.export_history', format='csv') }}">Export CSV</a>
+                </div>
+            </div>
+            <form id="import-history-form" class="stack" action="{{ url_for('history.import_history') }}" method="post" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="field">
+                    <label for="import-file">Import history file</label>
+                    <input type="file" name="file" id="import-file" accept=".json,.csv" aria-describedby="import-hint" required>
+                    <small id="import-hint">Importing a backup replaces the current history.</small>
+                </div>
+                <div><button type="submit" class="btn btn-primary">Import history</button></div>
+            </form>
+        </div>
+    </section>
 </div>
 {% endblock %}

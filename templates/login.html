@@ -1,19 +1,88 @@
-<!DOCTYPE html>
+{% from 'partials/_icons.html' import icon, sprite %}
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>Sign in · ansible-power</title>
+  {% include 'partials/_theme.html' %}
+  <style>
+    :root {
+      color-scheme: light;
+      --ground: #f0f4fa;
+      --panel: #ffffff;
+      --ink: #15243b;
+      --muted: #526780;
+      --outline: #c6d2e2;
+      --accent: #2358ad;
+      --mark: #dceaff;
+      --error: #ac253a;
+    }
+    :root.dark {
+      color-scheme: dark;
+      --ground: #0d1627;
+      --panel: #142035;
+      --ink: #edf3fc;
+      --muted: #a6bbd6;
+      --outline: #425875;
+      --accent: #8cbaff;
+      --mark: #203b60;
+      --error: #ffafba;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      display: grid;
+      min-height: 100dvh;
+      padding: 1rem;
+      place-items: center;
+      background: var(--ground);
+      color: var(--ink);
+      font: 1rem/1.5 system-ui, sans-serif;
+    }
+    main {
+      width: min(100%, 27rem);
+      padding: clamp(1.5rem, 5vw, 2.5rem);
+      background: var(--panel);
+      border: 1px solid var(--outline);
+      border-radius: 1.15rem;
+    }
+    .icon-definitions { position: absolute; }
+    .brand-mark {
+      display: inline-grid;
+      place-items: center;
+      width: 2.65rem;
+      height: 2.65rem;
+      border-radius: .75rem;
+      background: var(--mark);
+      color: var(--accent);
+    }
+    .icon { width: 1.3rem; height: 1.3rem; }
+    h1 { font-size: 1.7rem; letter-spacing: -.04em; line-height: 1.2; margin: 1.2rem 0 .5rem; }
+    p { margin: 0 0 1.4rem; color: var(--muted); }
+    [role="alert"] { color: var(--error); }
+    form, label { display: grid; gap: .55rem; }
+    form { gap: 1.1rem; }
+    label { font-size: .9rem; font-weight: 600; }
+    input, button { width: 100%; min-height: 2.75rem; font: inherit; border-radius: .5rem; padding: .55rem .8rem; }
+    input { color: var(--ink); background: var(--panel); border: 1px solid var(--outline); }
+    button { background: #2358ad; color: white; border: 1px solid transparent; font-weight: 650; cursor: pointer; }
+    button:hover { background: #18468f; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  </style>
 </head>
 <body>
+  {{ sprite() }}
   <main>
+    <span class="brand-mark">{{ icon('bolt') }}</span>
     <h1>Sign in to ansible-power</h1>
+    <p>Use your administrator account to access the control node.</p>
     {% if error %}<p role="alert">{{ error }}</p>{% endif %}
     <form method="post" action="{{ url_for('login') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <p><label>Username <input name="username" autocomplete="username" maxlength="64" required autofocus></label></p>
-      <p><label>Password <input type="password" name="password" autocomplete="current-password" maxlength="1024" required></label></p>
+      <label>Username <input name="username" autocomplete="username" maxlength="64" required autofocus></label>
+      <label>Password <input type="password" name="password" autocomplete="current-password" maxlength="1024" required></label>
       <button type="submit">Sign in</button>
     </form>
   </main>

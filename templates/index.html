@@ -1,91 +1,102 @@
 {% extends 'base.html' %}
 {% from '_outcome.html' import badge %}
+{% from 'partials/_icons.html' import icon %}
 {% block title %}Playbooks — ansible-power{% endblock %}
 
 {% block content %}
-<div class="mt-4">
+<header class="page-heading">
     <h1>Playbooks</h1>
-    {% if jobs %}
-    <details class="mb-3">
-        <summary>Recent runs</summary>
-        <ul>
-        {% for job in jobs %}
-            <li><a href="{{ url_for('main.job_page', job_id=job.id) }}">{{ job.playbook }} · {{ badge(job.state) }} · {{ job.created_at }}</a></li>
-        {% endfor %}
-        </ul>
-    </details>
-    {% endif %}
-    {% if error %}
-      <div class="alert alert-danger" role="alert">
-          {{ error }}
-      </div>
-    {% endif %}
-    
-    {% if prompt_for_dir %}
-    <div class="alert alert-warning">
-        <p>Playbooks directory '{{ playbooks_dir }}' does not exist.</p>
-        <form id="playbooks-dir-form" class="mt-3">
-            <div class="form-group">
-                <label for="playbooks_dir">Please specify the path to your playbooks directory:</label>
-                <input type="text" class="form-control" id="playbooks_dir" name="playbooks_dir" 
-                       value="{{ playbooks_dir }}" required>
-            </div>
-            <button type="submit" class="btn btn-primary mt-2">Save Directory</button>
-        </form>
-    </div>
-    
+    <p>Run Ansible playbooks against your inventory or on this control node.</p>
+</header>
 
-    {% elif playbooks|length == 0 %}
-    <!-- task 45: empty state — no playbooks in the configured directory -->
-    <div class="ap-empty-state">
-        <div class="ap-empty-state-icon">
-            <i class="fas fa-folder-open"></i>
+{% if error %}<p class="notice notice-danger" role="alert">{{ error }}</p>{% endif %}
+
+<div class="playbooks-layout">
+    <section class="panel" aria-labelledby="playbooks-heading">
+        <header class="panel-heading">
+            <h2 id="playbooks-heading">Available playbooks</h2>
+            {% if playbooks %}<span class="count">{{ playbooks|length }}</span>{% endif %}
+        </header>
+
+        {% if prompt_for_dir %}
+        <div class="panel-body">
+            <p class="notice">The directory <code>{{ playbooks_dir }}</code> could not be found.</p>
+            <form id="playbooks-dir-form" class="stack">
+                <label for="playbooks_dir">Playbooks directory</label>
+                <input id="playbooks_dir" name="playbooks_dir" value="{{ playbooks_dir }}" required>
+                <div><button class="btn btn-primary" type="submit">Save directory</button></div>
+            </form>
         </div>
-        <h4>No playbooks found</h4>
-        <p>
-            No <code>.yml</code> or <code>.yaml</code> files were found in
-            <strong>{{ playbooks_dir }}</strong>.<br>
-            Add playbooks to that directory, or
-            <a href="{{ url_for('settings.settings') }}">configure a different directory in Settings →</a>
-        </p>
-    </div>
-
-    {% else %}
-    <div class="form-group">
-        <label for="execution-mode">Execution target</label>
-        <select id="execution-mode" class="form-control">
-            <option value="inventory" selected>Configured inventory</option>
-            <option value="local">Local — this control node</option>
-        </select>
-        <small class="form-text text-muted">Inventory problems must be repaired in Settings before running.</small>
-    </div>
-    <div class="mb-3">
-        <input type="text" id="playbook-search" class="form-control"
-               placeholder="🔍 Filter playbooks..." autocomplete="off">
-    </div>
-    <div class="list-group" id="playbook-list">
-        {% for playbook in playbooks %}
-        <div class="list-group-item playbook-item">
-            <div class="d-flex w-100 justify-content-between">
-                <h5 class="mb-1">{{ playbook }}</h5>
-                <div>
-                    <button class="btn btn-sm btn-success run-btn" data-playbook="{{ playbook }}" data-index="{{ loop.index }}"><i class="fas fa-play mr-1"></i> Run</button>
-                    <button class="btn btn-sm btn-info show-btn" data-playbook="{{ playbook }}" data-index="{{ loop.index }}"><i class="fas fa-eye mr-1"></i> Show</button>
+        {% elif not playbooks %}
+        <div class="empty-state">
+            <span class="feature-icon">{{ icon('file') }}</span>
+            <h3>No playbooks found</h3>
+            <p>Add a YAML file to <code>{{ playbooks_dir }}</code> or update the directory in Settings.</p>
+            <a href="{{ url_for('settings.settings') }}#tab-paths">Open path settings {{ icon('arrow') }}</a>
+        </div>
+        {% else %}
+        <div class="filters">
+            <div class="field">
+                <label for="playbook-search">Find a playbook</label>
+                <div class="search-field">
+                    {{ icon('search') }}
+                    <input type="search" id="playbook-search" placeholder="Search by filename" autocomplete="off">
                 </div>
             </div>
-            <div class="output-wrapper mt-2" id="wrapper-{{ loop.index }}" style="display:none; position:relative;">
-                <button class="copy-output-btn" id="copy-btn-{{ loop.index }}" data-index="{{ loop.index }}" aria-label="Copy output to clipboard" title="Copy to clipboard">
-                    📋
-                </button>
-                <pre class="playbook-output" id="output-{{ loop.index }}"></pre>
+            <div class="field">
+                <label for="execution-mode">Execution target</label>
+                <select id="execution-mode">
+                    <option value="inventory" selected>Configured inventory</option>
+                    <option value="local">Local — this control node</option>
+                </select>
             </div>
         </div>
-        {% endfor %}
-        <div id="no-playbook-match" class="list-group-item text-muted" style="display:none;">
-            No playbooks match your search.
+        <div class="list-group" id="playbook-list">
+            {% for playbook in playbooks|sort %}
+            <article class="playbook-item">
+                <div class="playbook-row">
+                    <span class="feature-icon">{{ icon('file') }}</span>
+                    <h3 class="playbook-name">{{ playbook }}</h3>
+                    <div class="actions">
+                        <button type="button" class="btn show-btn" data-playbook="{{ playbook }}" data-index="{{ loop.index }}" aria-controls="wrapper-{{ loop.index }}" aria-expanded="false">{{ icon('code') }} <span>View YAML</span></button>
+                        <button type="button" class="btn btn-primary run-btn" data-playbook="{{ playbook }}" data-index="{{ loop.index }}">{{ icon('play') }} Run</button>
+                    </div>
+                </div>
+                <div class="output-wrapper" id="wrapper-{{ loop.index }}" hidden>
+                    <div class="output-tools">
+                        <button type="button" class="btn btn-quiet copy-output-btn" data-index="{{ loop.index }}" aria-label="Copy output to clipboard">Copy</button>
+                    </div>
+                    <pre class="playbook-output" id="output-{{ loop.index }}" tabindex="0"></pre>
+                </div>
+            </article>
+            {% endfor %}
+            <p id="no-playbook-match" class="empty-state" hidden>No playbooks match your search.</p>
         </div>
-    </div>
+        {% endif %}
+    </section>
 
-    {% endif %}
+    <section class="panel recent-runs" aria-labelledby="recent-heading">
+        <header class="panel-heading">
+            <h2 id="recent-heading">Recent runs</h2>
+            <a class="panel-link" href="{{ url_for('history.history') }}">History {{ icon('arrow') }}</a>
+        </header>
+        {% if jobs %}
+        <ul class="recent-list">
+            {% for job in jobs %}
+            <li>
+                <a href="{{ url_for('main.job_page', job_id=job.id) }}">
+                    <span>
+                        <span class="recent-name">{{ job.playbook }}</span>
+                        <time class="recent-time" datetime="{{ job.created_at }}" title="{{ job.created_at }}">{{ job.created_at }}</time>
+                    </span>
+                    {{ badge(job.state) }}
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="panel-body muted">Your runs will appear here once you launch a playbook.</p>
+        {% endif %}
+    </section>
 </div>
 {% endblock %}

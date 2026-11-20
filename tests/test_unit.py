@@ -237,9 +237,6 @@ class TestSecurityHeaders(unittest.TestCase):
         csp = response.headers.get("Content-Security-Policy", "")
         self.assertTrue(csp, "Content-Security-Policy header must be present")
         self.assertIn("'self'", csp)
-        self.assertIn("stackpath.bootstrapcdn.com", csp)
-        self.assertIn("cdnjs.cloudflare.com", csp)
-        self.assertIn("cdn.jsdelivr.net", csp)
 
     def test_security_headers_on_homepage(self):
         """Security headers must be set on GET /."""
@@ -266,13 +263,15 @@ class TestSecurityHeaders(unittest.TestCase):
         resp = self.client.get("/nonexistent-route-xyz")
         self._assert_security_headers(resp)
 
-    def test_csp_whitelists_required_sources(self):
-        """CSP header must whitelist 'self', stackpath, cdnjs, and jsdelivr (task 66)."""
-        resp = self.client.get("/")
-        csp = resp.headers.get("Content-Security-Policy")
-        self.assertIsNotNone(csp)
-        for expected in ("'self'", "stackpath.bootstrapcdn.com", "cdnjs.cloudflare.com", "cdn.jsdelivr.net"):
-            self.assertIn(expected, csp, f"Expected {expected} in Content-Security-Policy header")
+    def test_csp_loads_interface_assets_from_self(self):
+        """The self-hosted interface does not need third-party asset origins."""
+        response = self.client.get("/")
+        policy = response.headers["Content-Security-Policy"]
+        self.assertIn("script-src 'self' 'unsafe-inline';", policy)
+        self.assertIn("style-src 'self' 'unsafe-inline';", policy)
+        self.assertIn("font-src 'self';", policy)
+        self.assertNotIn("https://", policy)
+
 
 
 class TestRunPlaybookValid(unittest.TestCase):
@@ -1485,8 +1484,8 @@ class TestAnsibleBinaryResolution(unittest.TestCase):
                     self.assertEqual(resolved, "ansible-playbook")
 
 
-class TestSettingsTabs(unittest.TestCase):
-    """Task 65 — test settings page renders Bootstrap tabs."""
+class TestSettingsNavigation(unittest.TestCase):
+    """Verify the settings navigation and its functional controls."""
 
     def setUp(self):
         import ansiblePower
@@ -1498,34 +1497,15 @@ class TestSettingsTabs(unittest.TestCase):
             login_session["auth_token"] = auth.start_session(
                 ansiblePower.app.config["AUTH_DATABASE"], 1800)
 
-    def test_settings_page_contains_four_tabs(self):
-        """GET /settings/ must render Hosts, System, Paths, and Data Management tabs."""
-        resp = self.client.get("/settings/")
-        self.assertEqual(resp.status_code, 200)
-        html = resp.data.decode("utf-8")
+    def test_settings_navigation_links_to_each_panel(self):
+        response = self.client.get("/settings/")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
 
-        # Tab navigation links
-        self.assertIn('id="hosts-tab"', html)
-        self.assertIn('href="#tab-hosts"', html)
-        self.assertIn("Hosts", html)
-
-        self.assertIn('id="system-tab"', html)
-        self.assertIn('href="#tab-system"', html)
-        self.assertIn("System", html)
-
-        self.assertIn('id="paths-tab"', html)
-        self.assertIn('href="#tab-paths"', html)
-        self.assertIn("Paths", html)
-
-        self.assertIn('id="data-tab"', html)
-        self.assertIn('href="#tab-data"', html)
-        self.assertIn("Data Management", html)
-
-        # Tab panes
-        self.assertIn('id="tab-hosts"', html)
-        self.assertIn('id="tab-system"', html)
-        self.assertIn('id="tab-paths"', html)
-        self.assertIn('id="tab-data"', html)
+        self.assertIn('aria-label="Settings sections"', html)
+        for section in ("tab-hosts", "tab-system", "tab-paths", "tab-data"):
+            self.assertIn(f'href="#{section}"', html)
+            self.assertIn(f'id="{section}"', html)
 
         # Essential functional controls are preserved
         self.assertIn('id="show-hosts-btn"', html)

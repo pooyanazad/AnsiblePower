@@ -1,30 +1,47 @@
 {% extends 'base.html' %}
 {% from '_outcome.html' import badge %}
-{% block title %}Run {{ job.id }} — ansible-power{% endblock %}
+{% from 'partials/_icons.html' import icon %}
+{% block title %}{{ job.playbook }} · Run — ansible-power{% endblock %}
+
 {% block content %}
-<div class="mt-4" id="job-detail" data-status-url="{{ url_for('main.job_status', job_id=job.id) }}">
-    <h1>{{ job.playbook }}</h1>
-    <p>Run <code>{{ job.id }}</code> · {{ badge(job.state, "job-state") }}</p>
-    <p>You can leave this page and return to this URL to check the result.</p>
-    <dl>
-        <dt>Started</dt><dd id="job-started">{{ job.started_at or 'Not started' }}</dd>
-        <dt>Ended</dt><dd id="job-finished">{{ job.finished_at or '—' }}</dd>
-        <dt>Duration</dt><dd id="job-duration">{{ job.duration if job.duration is not none else '—' }}{% if job.duration is not none %} s{% endif %}</dd>
-        <dt>Exit code</dt><dd id="job-exit">{{ job.exit_code if job.exit_code is not none else 'Unknown' }}</dd>
+<div id="job-detail" data-status-url="{{ url_for('main.job_status', job_id=job.id) }}" class="stack page-stack">
+    <header class="page-heading">
+        <a class="back-link" href="{{ url_for('main.homepage') }}">← Playbooks</a>
+        <div class="heading-actions">
+            <h1>{{ job.playbook }}</h1>
+            {{ badge(job.state, 'job-state') }}
+        </div>
+        <p class="run-id">Run <code>{{ job.id }}</code></p>
+    </header>
+
+    <dl class="panel run-metrics">
+        <div><dt>Started</dt><dd id="job-started">{{ job.started_at or 'Not started' }}</dd></div>
+        <div><dt>Ended</dt><dd id="job-finished">{{ job.finished_at or '—' }}</dd></div>
+        <div><dt>Duration</dt><dd id="job-duration">{{ job.duration if job.duration is not none else '—' }}{% if job.duration is not none %} s{% endif %}</dd></div>
+        <div><dt>Exit code</dt><dd id="job-exit">{{ job.exit_code if job.exit_code is not none else 'Unknown' }}</dd></div>
     </dl>
-    <form id="job-cancel" method="post" action="{{ url_for('main.cancel_job', job_id=job.id) }}" {% if job.state not in ['queued', 'running'] %}hidden{% endif %}>
+
+    <form id="job-cancel" class="notice notice-warning" method="post" action="{{ url_for('main.cancel_job', job_id=job.id) }}" {% if job.state not in ['queued', 'running'] %}hidden{% endif %}>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="btn btn-warning" type="submit" {% if job.cancel_requested %}disabled{% endif %}>{% if job.cancel_requested %}Cancellation requested…{% else %}Cancel run{% endif %}</button>
+        <div class="heading-actions">
+            <p>Remote work can continue after the local run stops. Check the affected hosts.</p>
+            <button class="btn btn-danger" type="submit" {% if job.cancel_requested %}disabled{% endif %}>{% if job.cancel_requested %}Cancellation requested…{% else %}Cancel run{% endif %}</button>
+        </div>
     </form>
-    <p>Stopping a local runner cannot guarantee cancellation of work already started remotely. Check the affected hosts.</p>
-    <pre id="job-output" class="playbook-output">{{ job.output }}</pre>
-    <p><a href="{{ url_for('settings.settings') }}">Repair configuration in Settings</a> ·
-       <a href="{{ url_for('main.homepage') }}">Back to playbooks</a></p>
-    <form id="job-review" method="post" action="{{ url_for('main.acknowledge_job', job_id=job.id) }}" {% if not job.needs_review %}hidden{% endif %}>
+
+    <form id="job-review" class="notice notice-warning stack" method="post" action="{{ url_for('main.acknowledge_job', job_id=job.id) }}" {% if not job.needs_review %}hidden{% endif %}>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <p>The run was interrupted or its result is uncertain. This run will not be replayed. Check the affected hosts before starting another run.</p>
-        <label><input type="checkbox" name="hosts_checked" value="yes" required> I checked the affected hosts.</label>
-        <button class="btn btn-warning" type="submit">Acknowledge result</button>
+        <p>The run was interrupted or its result is uncertain. Check the affected hosts before starting another run.</p>
+        <label class="check-field"><input type="checkbox" name="hosts_checked" value="yes" required> I checked the affected hosts.</label>
+        <div><button class="btn" type="submit">Acknowledge result</button></div>
     </form>
+
+    <section class="panel terminal-panel" aria-labelledby="output-heading">
+        <header class="panel-heading">
+            <h2 id="output-heading">{{ icon('terminal') }} Run output</h2>
+        </header>
+        <pre id="job-output" class="playbook-output" tabindex="0">{{ job.output }}</pre>
+    </section>
+    <div id="job-repair" {% if job.state != 'blocked' %}hidden{% endif %}><a href="{{ url_for('settings.settings') }}">Repair configuration in Settings {{ icon('arrow') }}</a></div>
 </div>
 {% endblock %}
